@@ -4,8 +4,12 @@
 
 **總則**
 
+- 標記 🟡 的條文代表**目標狀態，尚未實作**（例如 CI、自動化測試），實作前以條文旁或文末「代辦事項」說明的替代做法為準。
 - 本專案所有程式碼的智慧財產權歸屬**學校**，不屬於個人。
 - 開發統一在支援版本控制的平台（**GitHub**）上進行，所有規則以此為前提。
+- **資料匿名與去識別化**：資料傳送到 AI 模型或系統外部時，都要考慮匿名或去識別化。
+- **資料保留**：功能增減盡可能以「停用、移除關聯」的方式處理，盡可能保留既有資料。
+- **除錯原則**：面對程式錯誤，以找出根因（debug）並解決為原則，不能只用繞過問題的暫時解法（workaround）。
 
 ---
 
@@ -16,9 +20,9 @@ flowchart LR
     A["Jira 領取任務<br/>Assignee 設成自己<br/>To Do → In Progress"] --> B["從 main 開分支<br/>feature/NL-123-xxx"]
     B --> C["開發 + 本機測試<br/>小步 commit"]
     C --> D["push + 開 Pull Request<br/>Jira → Code Review"]
-    D --> CI{"CI 自動測試 + Lint"}
+    D --> CI{"🟡 CI 自動測試 + Lint<br/>(尚未實作)"}
     CI -- 失敗 --> C
-    CI -- 通過 --> E{"Code Review<br/>3 人同意"}
+    CI -- 通過 --> E{"Code Review<br/>專案負責人 + 另 1 人同意"}
     E -- 要修改 --> C
     E -- 通過 --> F["Squash merge 進 main<br/>刪除分支"]
     F --> G["Jira → Done"]
@@ -28,7 +32,7 @@ flowchart LR
 
 1. **不要直接 push 到 `main`**，所有變更都要透過 Pull Request。
 2. **每個分支、commit、PR 都要帶 Jira 編號**（例如 `NL-123`）。
-3. **合併前一定要有 3 個人 review 並同意（Approve），且自動化檢查（CI）要全部通過**。
+3. **合併前一定要有 2 個人 Approve（專案負責人 + 任一位其他成員，不含自己），且自動化檢查（CI）要全部通過**（🟡 CI 尚未實作，目前以 PR 檢查清單把關，見 4.3）。
 4. **新功能開 Ticket 前先跟指導教授與團隊討論過**，不要自己想到就直接做。
 
 > 本專案的 Jira key 是 `NL`，任務編號格式為 `NL-123`。文件中的編號都是範例。
@@ -47,149 +51,69 @@ flowchart LR
 
 **Ticket 類型**
 
-| 類型 | 什麼時候用 | 範例 |
-| --- | --- | --- |
-| **Task** | **所有要做的工作**：新功能、改善、重構、文件、工具設定都用 Task | 學生可以收回已繳交的作業、建立共用元件、導入 Vitest、更新文件 |
-| **Bug** | 原本應該正常，但壞掉了 | 過了截止時間還能繳交作業 |
-| **Sub-task** | 把一個 Task 拆成更小的工作 | 後端 API、前端頁面 |
-
-> **Task 和 Sub-task 的差別**：Task 是一個**獨立的 Ticket**，可以單獨開分支、單獨合併；Sub-task 是**同一個 Ticket 拆出來的步驟**，通常跟著那個 Ticket 一起完成。
-
-> ⚠️ **新功能開 Ticket 前，要先和指導教授與團隊討論過需求**，確認要做、怎麼做之後才開 Task Ticket、開分支動工。不是自己想到就直接做；非功能性的事（重構、工具導入、文件）不需要教授確認，但一樣要開 Ticket 並讓團隊知道。
-
-### 1.1 開 Ticket
-
-1. 在看板 **To Do** 欄位下方按 **「+」**，輸入標題後按 Enter。
-2. 點開剛建立的 Ticket，補上下面的欄位。
-
-| 欄位 | 填什麼 |
+| 類型 | 用途 |
 | --- | --- |
-| **類型** | Task / Bug / Sub-task（見上方 Ticket 類型） |
-| **標題** | 清楚寫出是哪個功能、要做什麼，例如「作業收回功能」「導入 Vitest」。不要只寫「作業頁」「修 bug」這種看不出內容的標題 |
-| **Description** | 依類型照下方範本寫 |
-| **Assignee** | 誰負責做。開 Ticket 時**還沒決定誰做就留空**，Ticket 會留在 To Do 等人認領；確定是自己要做的，就直接設成自己 |
-| 其他 | Priority、Labels 有需要再填 |
+| **Task** | 所有要做的工作：新功能、改善、重構、文件、工具設定 |
+| **Bug** | 原本應該正常，但壞掉了 |
+| **Sub-task** | 把一個 Task 拆成更小的步驟，跟著該 Task 一起完成 |
 
-**Task 的 Description 範本**
+- **新功能開 Ticket 前，要先和指導教授與團隊討論過需求**，確認後才開 Task、開分支。非功能性的事（重構、工具導入、文件）不需教授確認，但一樣要開 Ticket 並讓團隊知道。
+- 一個 Ticket 最好在 **1～3 天內**能做完，太大就拆成 Sub-task 或多個 Ticket。
 
-```markdown
-## 背景
-為什麼要做、使用者怎麼用。
+### 1.1 Ticket 內容規範
 
-## 完成條件
-- [ ] 截止前可以收回作業
-- [ ] 截止後無法收回，直接呼叫 API 也會被拒絕
+| 欄位 | 規範 |
+| --- | --- |
+| **類型** | Task / Bug / Sub-task |
+| **標題** | 寫出是哪個功能、要做什麼，不可只寫「作業頁」「修 bug」這類看不出內容的標題 |
+| **Description** | 依類型寫，必填項目見下 |
+| **Assignee** | 未決定誰做就留空，留在 To Do 等人認領；確定自己要做就設成自己 |
 
-## 技術備註（牽涉資料庫或 API 時才寫）
-- API：DELETE /api/homeworks/:hwId/submissions/me
-```
+**Task 的 Description**：
 
-**完成條件一定要寫**，每一條都要能明確判斷「做到了沒有」。
+- **背景**：為什麼要做、使用者怎麼用。
+- **完成條件**（必填）：每一條都要能明確判斷「做到了沒有」。
+- **技術備註**：牽涉資料庫或 API 時才寫。
 
-**Bug 的 Description 範本**
+**Bug 的 Description**：
 
-```markdown
-## 重現步驟
-1. 用學生帳號登入
-2. 打開已截止的作業
-3. 按「繳交」
+- **重現步驟**、**預期結果**、**實際結果**、**環境**（角色、瀏覽器；截圖或錯誤訊息放附件）。
+- 修好的標準：照重現步驟操作，會得到預期結果。
 
-## 預期結果
-跳出「已超過截止時間」，無法繳交
+### 1.2 Ticket 狀態
 
-## 實際結果
-繳交成功
-
-## 環境
-角色：學生 / 瀏覽器：Chrome
-（截圖或錯誤訊息直接貼在 Ticket 附件）
-```
-
-Bug 修好的標準就是：**照重現步驟操作，會得到預期結果**。
-
-一個 Ticket 最好在 **1～3 天內**能做完，太大就拆成 Sub-task 或多個 Ticket。
-
-### 1.2 依照進度拖曳 Ticket
-
-開始做、開 PR、合併時，把 Ticket **拖曳**到對應的欄位：
-
-| 欄位 | 什麼時候拖過去 | 對應的 Git 動作 |
+| 欄位 | 條件 | 對應的 Git 動作 |
 | --- | --- | --- |
 | **To Do** | 開 Ticket | — |
-| **In Progress** | 開始動手的那一刻 | 開分支 |
+| **In Progress** | 開始動手 | 開分支 |
 | **Code Review** | PR 開好、等人 review | 開 Pull Request |
 | **Done** | PR 合併進 `main` 之後 | Merge |
 
-- **認領 Ticket**：要做 To Do 裡沒有 Assignee 的 Ticket 時，先把 Assignee 設成自己，再拖到 In Progress。**拖到 In Progress 前，Assignee 一定要是自己**，大家才知道這個 Ticket 有人在做，不會重複做。
+- 拖到 In Progress 前，**Assignee 一定要是自己**。
 - 一個人手上的 In Progress **最好不超過 2 張**。
-- 卡住超過一天，在 Discord 開討論串（標題帶 Ticket 編號）說明卡在哪裡。
-- 開發途中發現的新問題，**另外開一個 Ticket**，不要塞進目前的分支。
+- 卡住超過一天，在 Discord 開討論串（標題帶 Ticket 編號）說明。
+- 開發途中發現的新問題，**另外開 Ticket**，不要塞進目前的分支。
 
-### 1.3 在 Discord 開討論串討論，討論完同步寫到 Jira
+### 1.3 討論與同步
 
-Jira 主要用來放任務，討論都在 Discord 進行。但 Discord 的訊息很快就會被洗掉，事後很難找，所以某個 Ticket 需要討論時，照這三步做：
+- Discord 的討論串標題格式：`NL-123 要討論的問題`；同一個 Ticket 的討論集中在同一個討論串。
+- 討論結束後，由 Ticket 的 **Assignee** 在 Jira 留言寫下**決定了什麼**並附討論串連結；完成條件有變就更新 Ticket 描述；並在討論串回覆「已同步到 Jira」。
+- **需要同步的討論**：會影響 Ticket 成果的（改需求、改完成條件、資料表 / API 設計、決定某部分先不做）。單純問答不用。
+- Discord 提到的新需求或 bug，由提出者（或參與討論者）開成 Ticket。
+- 針對程式碼的意見留在 GitHub PR；在 Discord 討論出的結果也要同步回 PR 留言。
+- 原則：**半年後有人問「為什麼這樣做」，只看 Jira 和 PR 就要能找到答案。**
 
-**① 在 Discord 開一個討論串，標題帶上 Jira 編號**
+### 1.4 🟡 Jira 和 GitHub 的連結(尚未連結)
 
-標題格式：`NL-123 要討論的問題`，例如：
-
-> `NL-123 收回作業時要不要保留原本的檔案`
-
-一個 Ticket 的討論都集中在同一個討論串裡，不要散在一般聊天中。
-
-**② 在討論串裡討論**
-
-**③ 討論完，由 Ticket 的 Assignee 同步寫到 Jira**
-
-- 在 Jira Ticket 留一則簡短的留言，寫下**決定了什麼**，附上討論串連結：
-
-  > 10/5 Discord 討論：收回作業時保留原本的答案和檔案，重新繳交時沒換檔就沿用舊檔。（討論串連結）
-
-- 如果完成條件因此改變，**直接更新 Ticket 描述裡的完成條件**。
-- 回到討論串回覆「已同步到 Jira」，讓大家知道這個討論結束了。
-
-**哪些討論需要同步到 Jira？** 會影響「這個 Ticket 做出來的樣子」的才需要，例如改需求、改完成條件、決定資料表或 API 怎麼設計、決定某部分先不做。單純的問答（「`npm install` 失敗怎麼辦」）不用同步。
-
-**其他規則**
-
-- **新需求或 bug**：Discord 上提到的新需求或 bug，由提出的人（或是參與討論者）開成 Jira Ticket。
-- **程式碼細節留在 PR**：針對某一行程式的意見，直接在 GitHub PR 上留言，比較好對照是哪一段程式。在 Discord 討論出結果的話，也要同步回 PR 留言。
-
-判斷原則：**半年後有人問「為什麼這樣做」時，只看 Jira 和 PR 就要能找到答案。**
-
-### 1.4 Jira 和 GitHub 的連結(尚未連結)
-
-只要分支名稱、commit 訊息或 PR 標題裡有 Jira 編號（例如 `NL-123`），而且 Jira 已安裝 GitHub 整合，Ticket 上就會自動出現相關的分支、commit 和 PR。所以**一定要帶編號**，之後才查得到「這段程式是為了哪個 Ticket 寫的」。
+分支名稱、commit 訊息、PR 標題都**必須帶 Jira 編號**（例如 `NL-123`），Jira 安裝 GitHub 整合後會自動連結。
 
 ---
 
-## 2. Git 使用說明
+## 2. Git 規範
 
-### 2.1 第一次設定（每台電腦做一次）
+### 2.1 環境設定
 
-```sh
-# 設定名字與 email（請用和 GitHub 帳號相同的 email）
-git config --global user.name "你的名字"
-git config --global user.email "you@example.com"
-
-# 下載專案
-git clone https://github.com/Chrubby/eeclass.git
-cd eeclass
-```
-
-**建立自己的環境設定檔（不會被 commit）**：指令依作業系統不同，複製貼上對應的那一段就好。
-
-```sh
-# macOS / Linux，或 Windows 的 Git Bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-```
-
-```powershell
-# Windows PowerShell 或 cmd
-copy backend\.env.example backend\.env
-copy frontend\.env.example frontend\.env
-```
+- 環境設定檔由 `.env.example` 複製成 `.env`（`backend/`、`frontend/` 各一份），`.env` 不會被 commit。
 
 ### 2.2 分支規則
 
@@ -210,139 +134,37 @@ copy frontend\.env.example frontend\.env
 
 描述用英文小寫、單字之間用 `-` 連接，不要用中文或空白。
 
-### 2.3 每天的開發流程
+### 2.3 開發規範
 
-**① 開始一個新 Ticket：從最新的 `main` 開分支**
-
-```sh
-git switch main
-git pull                                        # 先拿到最新的 main
-git switch -c feature/NL-123-homework-unsubmit # 開新分支並切過去
-```
-
-**② 開發中：小步 commit**
-
-```sh
-git status                    # 看改了哪些檔案
-git diff                      # 看改了什麼內容
-git add backend/src/services/homeworkService.js frontend/src/views/course/student/HomeworkStudent.vue
-git commit -m "feat(homework): 學生可以收回已繳交的作業 NL-123"
-```
-
-- 一個 commit 只做**一件事**，做完一個小段落就 commit，不要整天只 commit 一次。
-- `git add` 請**指定檔案**，避免用 `git add .` 把不相關的東西一起加進去。
-- commit 前先看一次 `git diff`，確認沒有留下 `console.log`、測試用的程式碼。
-
-**③ 推上 GitHub**
-
-```sh
-git push -u origin feature/NL-123-homework-unsubmit   # 第一次推這個分支
-git push                                               # 之後只要這樣
-```
-
-**④ 開 Pull Request**：到 GitHub 頁面按「Compare & pull request」，規則見第 4 章。
-
-**⑤ 合併後：清理**
-
-```sh
-git switch main
-git pull
-git branch -d feature/NL-123-homework-unsubmit   # 刪除本機分支
-```
+- 工作分支一律從**最新的 `main`** 開出。
+- 一個 commit 只做**一件事**，做完一個小段落就 commit。
+- 開 PR 前、或 PR 出現衝突時，先把最新的 `main` 合進自己的分支。
+- 合併後刪除遠端與本機分支。
 
 ### 2.4 Commit 訊息格式
 
 ```
-類型(模組): 一句話說明做了什麼 NL-123
+Jira編號-做了什麼
 ```
 
-| 類型 | 意思 |
-| --- | --- |
-| `feat` | 新功能 |
-| `fix` | 修 bug |
-| `refactor` | 重構，功能不變 |
-| `test` | 新增或修改測試 |
-| `docs` | 文件 |
-| `style` | 排版、縮排，不影響邏輯 |
-| `chore` | 套件、設定、建置工具 |
+- 格式和分支名稱一致：Jira 編號開頭，接著 `-` 與說明；每個 commit 都要帶編號。
+- 說明寫「**做了什麼**」；需要解釋「為什麼」時，在第一行下面空一行再寫。
+- 範例：`NL-123-學生可以收回已繳交的作業`
+- 不合格的寫法：`update`、`3.28`、`fix bug`、`修改作業頁面`（看不出改了什麼，或缺 Jira 編號）。
 
-`模組` 使用 [modules/](modules/README.md) 的名稱：`auth`、`course`、`announcement`、`material`、`discussion`、`homework`、`homework-ai`、`course-ai`、`aiquiz`、`shared`、`db`。
+### 2.5 衝突處理
 
-**✅ 好的範例**
+- 衝突由**自己的分支**解決（把 `main` 合進來處理），解完要確認程式還能正常執行。
+- 看不懂別人的修改時，不要猜，找那段程式的作者一起處理。
 
-```
-feat(homework): 學生可以收回已繳交的作業 NL-123
-fix(aiquiz): 過了截止時間不能再送出答案 NL-130
-docs(api): 補上作業 API 的 response 範例 NL-150
-```
-
-**❌ 不要這樣寫**
-
-```
-update            ← 看不出改了什麼
-3.28              ← 日期不是說明
-fix bug           ← 哪個 bug？
-修改作業頁面        ← 沒有類型、沒有 Jira 編號
-```
-
-說明要寫「**做了什麼**」，需要解釋「**為什麼**」時，在第一行下面空一行再寫：
-
-```sh
-git commit -m "fix(homework): 收回作業時保留原本的檔案 NL-131" -m "原本收回會清空 file_path，學生重新繳交時要再上傳一次。"
-```
-
-### 2.5 讓分支跟上最新的 main
-
-開發期間別人可能已經合併了新東西。**開 PR 前、或 PR 出現衝突時**，要先把最新的 `main` 合進自己的分支：
-
-```sh
-git switch main
-git pull
-git switch feature/NL-123-homework-unsubmit
-git merge main
-```
-
-### 2.6 遇到衝突（conflict）怎麼辦
-
-`git merge` 出現 `CONFLICT` 時：
-
-1. 打開有衝突的檔案（VS Code 會標紅），會看到：
-   ```
-   <<<<<<< HEAD
-   你的修改
-   =======
-   main 上別人的修改
-   >>>>>>> main
-   ```
-2. 判斷要保留哪一段（或兩段合併），刪掉 `<<<<<<<`、`=======`、`>>>>>>>` 這三行標記。
-3. 確認程式還能正常執行。
-4. 完成合併：
-   ```sh
-   git add 有衝突的檔案
-   git commit
-   ```
-
-**看不懂別人的修改時，不要猜，直接找那段程式的作者一起處理。**
-
-### 2.7 常見狀況
-
-| 狀況 | 指令 |
-| --- | --- |
-| 改到一半，想先切去別的分支 | `git stash` → 切分支做事 → 切回來 `git stash pop` |
-| 想放棄某個檔案還沒 commit 的修改 | `git restore 檔名` |
-| 已經 `git add`，想取消 | `git restore --staged 檔名` |
-| 剛 commit 完發現訊息打錯（**還沒 push**） | `git commit --amend -m "新的訊息"` |
-| 剛 commit 完發現漏了一個檔案（**還沒 push**） | `git add 漏掉的檔案` → `git commit --amend --no-edit` |
-| 已經 push 的 commit 想撤銷 | `git revert <commit id>`（會產生一個新的 commit 抵銷它） |
-| 不小心在 `main` 上改了東西（還沒 commit） | `git switch -c feature/NL-xxx-...`，修改會跟著帶到新分支 |
-
-### 2.8 禁止事項
+### 2.6 禁止事項
 
 - ❌ 直接 push 到 `main`。
 - ❌ `git push --force` 到 `main` 或別人的分支。自己的分支真的需要時，用 `git push --force-with-lease`。
 - ❌ commit `.env`、密碼、API key、`node_modules/`、`backend/uploads/` 裡的檔案。
 - ❌ 一個分支同時做好幾個 Ticket 的事。
 - ❌ 用 `git add .` 之後沒檢查就直接 commit。
+- ❌ 已經 push 的 commit 用 amend 改寫；要撤銷請用 `git revert`。
 
 ---
 
@@ -428,9 +250,9 @@ git merge main
 
 - 新增環境變數時，**同時加到 `.env.example`**，並寫註解說明用途與預設值。
 - 密碼、API key、`JWT_SECRET` **只能放在 `.env`**，不能寫在程式碼裡，也不能貼在 Jira、PR 或 Discord。
-- 不小心 commit 了機密：**馬上通知組長並更換該密碼 / key**。只刪掉檔案是不夠的，git 歷史裡還會留著。
+- 不小心 commit 了機密：**馬上通知負責人並更換該密碼 / key**。只刪掉檔案是不夠的，git 歷史裡還會留著。
 
-### 3.8 測試(目前沒有自動化測試，規則先立好)
+### 3.8 🟡 測試(目前沒有自動化測試，規則先立好)
 
 - **開 Ticket / 動工前先想好怎麼測**：Task Ticket 的「完成條件」就是測試的依據，寫 Task Ticket 時順便想一下這條功能要怎麼驗證，不要等寫完程式才想測試怎麼做。
 - 修改 **Service 的邏輯**時，要新增或更新對應的單元測試（Vitest，放在 `backend/tests/`），盡量每個新功能都附上。
@@ -456,15 +278,12 @@ git merge main
 
 ### 4.1 開 PR 的規則
 
-- **標題**：`[NL-123] 學生可以收回已繳交的作業`
+- **標題**：`NL-123-學生可以收回已繳交的作業`
 - **大小**：盡量控制在 **400 行以內**的修改。太大的 PR 很難 review，請拆成多個。
 - **還沒做完但想先讓人看**：開成 **Draft PR**。
 - 描述請照下面的範本填寫：
 
 ```markdown
-## Jira
-NL-123
-
 ## 做了什麼
 - 學生在截止前可以收回作業
 - 收回後保留原本的答案和檔案
@@ -476,7 +295,7 @@ NL-123
 
 ## 截圖（有改畫面時）
 
-## 檢查清單
+## 檢查清單(自我檢核表，可以不用打)
 - [ ] 有 Jira 編號
 - [ ] 本機跑過 npm test、npm run lint
 - [ ] 用相關角色實際操作過
@@ -490,16 +309,16 @@ NL-123
 
 **提出 PR 的人**
 
-- **不用指定 reviewer**。PR 開好後在 Discord 貼上連結，請大家幫忙 review，**任意 3 個人 Approve** 就可以合併（不包含自己）。
+- **不用指定 reviewer**。PR 開好後 Discord bot 會自動通知，不用另外貼連結，需要 **2 個人 Approve** 才能合併（不包含自己）：**專案負責人 + 任一位其他成員**。
 - 收到意見後，修改並 push 到同一個分支，再回覆該則留言「已修改」。
 - **Approve 之後又 push 了新的修改**，已經 Approve 的人要再看一次新改的部分（GitHub 會自動取消舊的 Approve，見 4.3）。所以請盡量把意見一次改完再 push，不要改一點推一點。
 - 不同意某個意見時，在 PR 留言說明理由，不要直接忽略。講不清楚可以到 Discord 討論，討論完同步回 PR 留言。
 
 **負責 review 的人**
 
-- 看到 Discord 上的 PR 連結，請在 **1 個工作天內**去 review。每個 reviewer 都要**各自**看完整個 PR，不要分工只看一部分，也不要因為「別人應該會看」就隨便按 Approve。
+- 看到 Discord bot 的 PR 通知，請在 **1 個工作天內**去 review。每個 reviewer 都要**各自**看完整個 PR，不要分工只看一部分，也不要因為「別人應該會看」就隨便按 Approve。
 - 看完後在 GitHub 選擇：**Approve**（可以合併）、**Request changes**（有必須改的地方），或只留 **Comment**（只有建議）。
-- PR 超過 1 個工作天還沒湊滿 3 個 Approve，PR 提出者在 Discord 再提醒一次。
+- PR 超過 1 個工作天還沒湊滿 2 個 Approve，PR 提出者在 Discord 再提醒一次。
 - 重點檢查：
 
 | 項目 | 要問自己 |
@@ -516,12 +335,12 @@ NL-123
 
 ### 4.3 合併
 
-- 條件：**3 人都 Approve**、**自動化檢查（CI）全部通過**，所有討論都已解決，沒有衝突。
+- 條件：**2 人都 Approve（含專案負責人）**、**自動化檢查（CI）全部通過**，所有討論都已解決，沒有衝突。
 - 由**提出 PR 的人**按合併。
 - 合併方式：**Squash and merge**。把整個 PR 壓成一個 commit，訊息改成符合第 2.4 節的格式。
 - 合併後**刪除遠端分支**（GitHub 按鈕），並把 Jira Ticket 移到 Done。
 
-**自動化品質閘門（CI）**：每個 PR 開啟或更新時，GitHub Actions 自動執行：
+**🟡 自動化品質閘門（CI）**：每個 PR 開啟或更新時，GitHub Actions 自動執行：
 
 - `backend`/`frontend` 的 `npm test`（單元測試）
 - `frontend` 的 `npm run lint`（oxlint + eslint）
@@ -530,17 +349,6 @@ NL-123
 
 > ⚠️ **現況落差**：目前還沒有建立對應的 GitHub Actions workflow 檔案（`.github/workflows/`），上面這條規則是**之後要補上 CI 設定檔才會真正生效**的目標狀態；在補上之前，PR checklist 裡的「本機跑過 `npm test`、`npm run lint`」仍是唯一的把關方式，review 的人要確實檢查這兩項勾選框有沒有被誠實勾選。
 
-**GitHub 設定**（repo 管理員設定一次）：Settings → Branches → 新增 `main` 的保護規則，勾選：
-
-| 設定 | 值 |
-| --- | --- |
-| Require a pull request before merging | ✅ |
-| Required number of approvals before merging | **3** |
-| Dismiss stale pull request approvals when new commits are pushed | ✅（push 新修改後，舊的 Approve 失效，要重新 Approve） |
-| Require conversation resolution before merging | ✅（所有留言討論都要標記已解決） |
-| Require status checks to pass before merging | ✅（勾選 CI 的測試/lint workflow——**需要先建好 GitHub Actions 才有東西可勾**，見上方現況落差） |
-
-設定之後，沒有滿 3 個 Approve、或 CI 沒過，GitHub 的合併按鈕就按不下去。
 
 ---
 
@@ -560,7 +368,7 @@ NL-123
 
 **有新的環境變數時**：部署前先確認伺服器的 `.env` 已經加上（新增的變數會寫在 `.env.example`，見 3.7）。
 
-**分支策略**：本專案採用主幹式開發（[Trunk Based Development](https://trunkbaseddevelopment.com/)）——平時所有 PR 都合併進 `main`，部署時直接從 `main` 的最新狀態部署(目前**沒有另外開 release 分支**)。
+**分支策略**：本專案採用主幹式開發（[Trunk Based Development](https://trunkbaseddevelopment.com/)）——平時所有 PR 都合併進 `main`，部署時直接從 `main` 的最新狀態部署(目前**沒有另外開 release 分支**)。緊急修復（Hotfix）是唯一可以不依上述常規流程的例外，事後仍要補開 Ticket 與 PR，並依本節最後的「事故處理」留下紀錄。
 
 **版號**：每次部署完成，在部署當下的 commit 上打一個 [語意化版本](https://semver.org/) tag，格式 `vMAJOR.MINOR.PATCH`（例如 `v1.3.0`），取代原本只記 commit hash 的做法：
 
@@ -591,6 +399,18 @@ cd backend && npm install && cd ../frontend && npm install && npm run build
 
 若那次回滾牽涉資料庫欄位異動，必須符合 [3.5 資料庫變更](#35-資料庫變更)的「先擴充、再切換、後刪除」原則，否則回滾後舊版程式可能因為欄位已經被刪除而壞掉——這也是為什麼刪除舊欄位前要先確認「沒有任何版本的程式還依賴它」。
 
+**環境隔離與正式部署**：開發、測試、正式環境要分開管理，並設定適當的存取權限。正式上線前要完成測試與驗收；部署後要確認系統及關鍵功能正常，發生異常就依上面的回滾方式復原。
+
+**備份與還原**：資料庫、重要檔案、系統設定要定期備份，並確認備份能正常還原。備份頻率、保留期限、復原方式依系統需求訂定。
+
+**監控、日誌與 AI 用量**：
+
+- 監控系統運作狀態、錯誤與回應時間。
+- 管理 AI 服務的使用量、成本與異常情況。
+- 系統日誌要足以協助追蹤問題，但避免記錄不必要的個資、機密資訊或完整的學生對話。
+
+**事故處理**：發生系統中斷、資料或機密外洩、重大 AI 異常時，要立即通知專案負責人並處理。緊急修復或例外處理要留下原因、處理方式與結果的紀錄。
+
 ---
 
 ## 5. 完成的定義（Definition of Done）
@@ -598,7 +418,7 @@ cd backend && npm install && cd ../frontend && npm install && npm run build
 一個 Jira Ticket 要**全部**符合以下條件，才能移到 Done：
 
 - [ ] 符合 Ticket 上的所有完成條件
-- [ ] PR 已有 3 人 Approve、CI 檢查通過，並合併進 `main`
+- [ ] PR 已有 2 人 Approve（含專案負責人）、CI 檢查通過，並合併進 `main`
 - [ ] 相關測試已新增並通過，且確認沒有改壞既有功能（回歸測試）
 - [ ] 用相關角色實際操作過，功能正常
 - [ ] 文件已更新（API、資料表、模組說明）
@@ -610,40 +430,18 @@ cd backend && npm install && cd ../frontend && npm install && npm run build
 
 ## 6. 速查表
 
-```sh
-# 開始一個新 Ticket
-git switch main && git pull
-git switch -c feature/NL-123-short-name
-
-# 開發中
-git status
-git diff
-git add 檔案
-git commit -m "feat(模組): 說明 NL-123"
-git push -u origin feature/NL-123-short-name
-
-# 跟上最新的 main
-git switch main && git pull
-git switch feature/NL-123-short-name
-git merge main
-
-# 合併後清理
-git switch main && git pull
-git branch -d feature/NL-123-short-name
-```
-
 | 東西 | 格式 |
 | --- | --- |
 | 分支 | `feature/NL-123-short-name` |
-| Commit | `feat(homework): 說明 NL-123` |
-| PR 標題 | `[NL-123] 說明` |
+| Commit | `NL-123-說明` |
+| PR 標題 | `NL-123-說明` |
 | Jira 狀態 | To Do → In Progress（Assignee 設成自己、開分支）→ Code Review（開 PR）→ Done（合併） |
 
 ## 代辦事項
 
 這份文件裡有些規則目前還沒真的做到，先把標準寫在規則裡，但實際落差整理在這裡，之後要認領時照第 1 章開一張 Task Ticket：
 
-* 把 GitHub、Jira 連接到 Discord
+* 把 Jira 連接到 Discord（GitHub 已串接，PR 會由 bot 通知）
 * Jira 跟 GitHub 的整合還沒安裝，分支/commit/PR 目前不會自動連回對應的 Ticket（見 1.4）
 * 還沒有任何自動化測試，也還沒裝 Vitest（見 3.8）
 * 還沒有 `.github/workflows/` 的 CI 設定檔，分支保護規則裡的「Require status checks to pass」目前還沒有東西可以勾（見 4.3）
@@ -651,4 +449,3 @@ git branch -d feature/NL-123-short-name
 * 部署目前是直接在伺服器上 `git pull` + `npm install` + `npm run build` 原地部署，產物不是不可變、自包含的 Docker image（見 4.4）
 * jira開code review階段
 * jira開啟ticket類型(bug)
-* 討論現階段PR如何進行(指定or隨機分配or有碰過該code的人、人數)
