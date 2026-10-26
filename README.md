@@ -31,7 +31,7 @@ npm run dev
 系統不開放自行註冊，所有帳號都由管理員建立，所以新的資料庫要先建立一個管理員才登得進去：
 
 ```sh
-cd backend
+src/api/client.js
 node scripts/seedAdmin.js <帳號> <姓名> <密碼>
 ```
 

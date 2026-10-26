@@ -198,7 +198,7 @@ const router = useRouter()
 const route = useRoute()
 
 const courseId = route.params.id || route.params.courseId
-const teacherId = getUsernameFromToken() || localStorage.getItem('user') || ''
+const teacherId = getUsernameFromToken() || localStorage.getItem("user") || sessionStorage.getItem("user") || ''
 
 const isGenerating = ref(false)
 const aiConfig = ref({
