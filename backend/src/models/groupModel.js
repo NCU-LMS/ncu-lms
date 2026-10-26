@@ -150,6 +150,7 @@ export const GroupModel = {
     const [rows] = await pool.execute(
       `SELECT p.id, p.group_id AS groupId, p.student_id AS studentId,
               p.parent_post_id AS parentPostId, p.content, p.created_at AS createdAt,
+              p.attachment_file_name AS attachmentFileName,
               COALESCE(s.name, t.name, a.username, p.student_id) AS authorName
        FROM course_group_discussion_posts p
        LEFT JOIN students s ON s.student_id = p.student_id
@@ -162,7 +163,17 @@ export const GroupModel = {
     return { groupName: groups[0]?.name || `小組 ${groupId}`, posts: rows };
   },
 
-  async createGroupDiscussionPost(groupId, studentId, parentPostId, content) {
+  async getGroupDiscussionAttachment(groupId, postId) {
+    const [rows] = await pool.execute(
+      `SELECT attachment_file_name AS fileName, attachment_file_path AS filePath
+       FROM course_group_discussion_posts
+       WHERE group_id = ? AND id = ? AND attachment_file_path IS NOT NULL`,
+      [groupId, postId],
+    );
+    return rows[0] || null;
+  },
+
+  async createGroupDiscussionPost(groupId, studentId, parentPostId, content, file) {
     if (parentPostId !== null && parentPostId !== undefined) {
       const [parents] = await pool.execute(
         "SELECT id FROM course_group_discussion_posts WHERE id = ? AND group_id = ?",
@@ -172,9 +183,18 @@ export const GroupModel = {
     }
     const [result] = await pool.execute(
       `INSERT INTO course_group_discussion_posts
-         (group_id, student_id, parent_post_id, content)
-       VALUES (?, ?, ?, ?)`,
-      [groupId, studentId, parentPostId || null, content],
+         (group_id, student_id, parent_post_id, content, attachment_file_name, attachment_file_path)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        groupId,
+        studentId,
+        parentPostId || null,
+        content,
+        file?.originalname
+          ? Buffer.from(file.originalname, "latin1").toString("utf8")
+          : null,
+        file ? `/uploads/${file.filename}` : null,
+      ],
     );
     return result.insertId;
   },
@@ -653,6 +673,53 @@ export const GroupModel = {
       [courseId, groupId],
     );
     return result.affectedRows > 0;
+  },
+
+  async kickMember(courseId, groupId, leaderId, studentId) {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [groups] = await connection.execute(
+        `SELECT leader_student_id
+         FROM course_groups
+         WHERE course_id = ? AND id = ?
+         FOR UPDATE`,
+        [courseId, groupId],
+      );
+      if (!groups.length) throw new Error("小組不存在");
+
+      const [members] = await connection.execute(
+        `SELECT id, student_id
+         FROM course_group_memberships
+         WHERE course_id = ? AND group_id = ?
+         ORDER BY joined_at, id
+         FOR UPDATE`,
+        [courseId, groupId],
+      );
+      const currentLeaderId = members.some(
+        (member) => member.student_id === groups[0].leader_student_id,
+      )
+        ? groups[0].leader_student_id
+        : members[0]?.student_id;
+      if (currentLeaderId !== leaderId) throw new Error("只有組長能移除小組成員");
+      if (studentId === leaderId) throw new Error("組長不能移除自己");
+
+      const target = members.find((member) => member.student_id === studentId);
+      if (!target) throw new Error("該學生不是此小組成員");
+      if (studentId === currentLeaderId) throw new Error("不能移除目前的組長");
+
+      await connection.execute(
+        `DELETE FROM course_group_memberships
+         WHERE id = ?`,
+        [target.id],
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async leaveGroup(courseId, groupId, studentId) {
