@@ -165,9 +165,27 @@
               >
                 招募訊息：{{ group.recruitmentMessage }}
               </p>
-              <p v-if="group.members.length" class="text-sm text-gray-700 leading-relaxed break-words">
-                組員：{{ memberNames(group) }}
-              </p>
+              <div v-if="group.members.length" class="mt-1">
+                <p class="text-sm text-gray-700 leading-relaxed">組員：</p>
+                <ul class="flex flex-wrap gap-2 mt-1">
+                  <li
+                    v-for="member in group.members"
+                    :key="member.id"
+                    class="inline-flex items-center gap-2 rounded bg-gray-100 px-2 py-1 text-sm text-gray-700"
+                  >
+                    <span>{{ member.name || member.id }}</span>
+                    <button
+                      v-if="group.isLeader && member.id !== group.leaderId"
+                      type="button"
+                      class="text-xs font-bold text-red-600 hover:underline disabled:opacity-50"
+                      :disabled="kickingMemberId === member.id"
+                      @click="kickMember(group, member)"
+                    >
+                      {{ kickingMemberId === member.id ? '移除中...' : '移出' }}
+                    </button>
+                  </li>
+                </ul>
+              </div>
               <p v-else class="text-sm text-gray-400">尚無組員</p>
 
               <form
@@ -453,6 +471,7 @@ const withdrawingApplicationId = ref(null)
 const recruitmentSaveStates = ref({})
 const leaderTransferTargets = ref({})
 const transferringGroupId = ref(null)
+const kickingMemberId = ref(null)
 
 const sortedGroups = computed(() =>
   [...groups.value].sort((a, b) =>
@@ -463,9 +482,6 @@ const sortedGroups = computed(() =>
 const myGroups = computed(() =>
   groups.value.filter((group) => group.isMine),
 )
-
-const memberNames = (group) =>
-  group.members.map((m) => m.name || m.id).join('、')
 
 const loadGroups = async () => {
   const { data } = await api.get(`/api/courses/${courseId}/groups`)
@@ -699,6 +715,22 @@ const leaveGroup = async (group) => {
     await loadPageData()
   } catch (error) {
     alert(error.response?.data?.message || error.message || '退出小組失敗')
+  }
+}
+
+const kickMember = async (group, member) => {
+  const memberName = member.name || member.id
+  if (!confirm(`確定要將「${memberName}」移出「${group.name}」嗎？`)) return
+  kickingMemberId.value = member.id
+  try {
+    await api.delete(
+      `/api/courses/${courseId}/groups/${group.id}/members/${encodeURIComponent(member.id)}`,
+    )
+    await loadPageData()
+  } catch (error) {
+    alert(error.response?.data?.message || error.message || '移除組員失敗')
+  } finally {
+    kickingMemberId.value = null
   }
 }
 
