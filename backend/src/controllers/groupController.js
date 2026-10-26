@@ -1,4 +1,5 @@
 import { GroupService } from "../services/groupService.js";
+import fs from "node:fs/promises";
 
 function handleError(res, error, fallbackMessage) {
   const message = error.message || "";
@@ -17,10 +18,13 @@ function handleError(res, error, fallbackMessage) {
   if (message === "找不到小組作業" || message === "找不到討論留言" || message === "找不到此小組的討論留言" || message === "找不到可刪除的討論留言") {
     return res.status(404).json({ message });
   }
+  if (message === "找不到討論附件") {
+    return res.status(404).json({ message });
+  }
   if (message.includes("只有該小組組員")) {
     return res.status(403).json({ message });
   }
-  if (message.includes("留言內容")) {
+  if (message.includes("留言內容") || message.includes("至少需提供一項")) {
     return res.status(400).json({ message });
   }
   if (message.includes("檔案移除清單")) {
@@ -78,11 +82,27 @@ function handleError(res, error, fallbackMessage) {
   if (message.includes("請選擇新的組長") || message.includes("不是此小組成員")) {
     return res.status(400).json({ message });
   }
+  if (message.includes("組長不能移除自己") || message.includes("不能移除目前的組長")) {
+    return res.status(400).json({ message });
+  }
   console.error("[GroupController]", error);
   return res.status(500).json({ message: fallbackMessage });
 }
 
 export const GroupController = {
+  async authorizeGroupDiscussion(req, res, next) {
+    try {
+      await GroupService.authorizeGroupDiscussion(
+        req.params.courseCode,
+        req.params.groupId,
+        req.user,
+      );
+      next();
+    } catch (error) {
+      handleError(res, error, "小組討論權限驗證失敗");
+    }
+  },
+
   async getGroups(req, res) {
     try {
       const groups = await GroupService.getGroups(req.params.courseCode, req.user);
@@ -262,6 +282,20 @@ export const GroupController = {
     }
   },
 
+  async kickMember(req, res) {
+    try {
+      await GroupService.kickMember(
+        req.params.courseCode,
+        req.params.groupId,
+        req.user,
+        req.params.studentId,
+      );
+      res.json({ message: "已將組員移出小組" });
+    } catch (error) {
+      handleError(res, error, "移除組員失敗");
+    }
+  },
+
   async getGroupHomeworks(req, res) {
     try {
       const homeworks = await GroupService.getGroupHomeworks(
@@ -294,10 +328,41 @@ export const GroupController = {
         req.params.groupId,
         req.user,
         req.body || {},
+        req.file || null,
       );
       res.status(201).json({ id, message: "留言已送出" });
     } catch (error) {
+      if (req.file?.path) {
+        try {
+          await fs.unlink(req.file.path);
+        } catch (cleanupError) {
+          if (cleanupError.code !== "ENOENT") {
+            console.error("[GroupController] 清理未使用的小組討論附件失敗", cleanupError);
+          }
+        }
+      }
       handleError(res, error, "發表小組討論留言失敗");
+    }
+  },
+
+  async downloadGroupDiscussionAttachment(req, res) {
+    try {
+      const attachment = await GroupService.getGroupDiscussionAttachment(
+        req.params.courseCode,
+        req.params.groupId,
+        req.params.postId,
+        req.user,
+      );
+      res.download(attachment.filePath, attachment.fileName, (error) => {
+        if (error) {
+          console.error("[GroupController] 下載小組討論附件失敗", error);
+          if (!res.headersSent) {
+            res.status(404).json({ message: "找不到討論附件" });
+          }
+        }
+      });
+    } catch (error) {
+      handleError(res, error, "下載小組討論附件失敗");
     }
   },
 

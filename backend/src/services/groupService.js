@@ -1,6 +1,8 @@
 import { GroupModel } from "../models/groupModel.js";
 import { HomeworkModel } from "../models/homeworkModel.js";
 import { HomeworkService } from "./homeworkService.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 function validateCourseCode(courseCode) {
   if (typeof courseCode !== "string" || !courseCode.trim()) {
@@ -100,6 +102,16 @@ export const GroupService = {
     if (!left) throw new Error("目前不在此小組");
   },
 
+  async kickMember(courseCode, groupId, user, studentId) {
+    const courseId = await resolveCourseId(courseCode);
+    if (!/^\d+$/.test(String(groupId))) throw new Error("小組不存在");
+    if (typeof studentId !== "string" || !studentId.trim()) {
+      throw new Error("請指定要移除的組員");
+    }
+    await assertStudentEnrollment(courseId, user.username);
+    await GroupModel.kickMember(courseId, groupId, user.username, studentId.trim());
+  },
+
   async getGroupHomeworks(courseCode, user) {
     const courseId = await resolveCourseId(courseCode);
     let groupIds;
@@ -126,12 +138,19 @@ export const GroupService = {
     return GroupModel.getGroupDiscussionPosts(groupId);
   },
 
-  async addGroupDiscussionPost(courseCode, groupId, user, { content, parentPostId = null }) {
+  async authorizeGroupDiscussion(courseCode, groupId, user) {
+    const courseId = await resolveCourseId(courseCode);
+    if (!/^\d+$/.test(String(groupId))) throw new Error("小組不存在");
+    await assertGroupAccess(courseId, groupId, user);
+  },
+
+  async addGroupDiscussionPost(courseCode, groupId, user, { content, parentPostId = null }, file = null) {
     const courseId = await resolveCourseId(courseCode);
     if (!/^\d+$/.test(String(groupId))) throw new Error("小組不存在");
     await assertGroupAccess(courseId, groupId, user);
     const normalizedContent = typeof content === "string" ? content.trim() : "";
-    if (!normalizedContent) throw new Error("留言內容不可為空");
+    if (!normalizedContent && !file) throw new Error("留言或 PDF 附件至少需提供一項");
+    if (normalizedContent.length > 10000) throw new Error("留言內容不可超過 10000 個字");
     if (normalizedContent.length > 10000) throw new Error("留言內容不可超過 10000 個字");
     if (parentPostId != null && !/^\d+$/.test(String(parentPostId))) {
       throw new Error("找不到此小組的討論留言");
@@ -141,7 +160,28 @@ export const GroupService = {
       user.username,
       parentPostId,
       normalizedContent,
+      file,
     );
+  },
+
+  async getGroupDiscussionAttachment(courseCode, groupId, postId, user) {
+    const courseId = await resolveCourseId(courseCode);
+    if (!/^\d+$/.test(String(groupId)) || !/^\d+$/.test(String(postId))) {
+      throw new Error("找不到討論附件");
+    }
+    await assertGroupAccess(courseId, groupId, user);
+    const attachment = await GroupModel.getGroupDiscussionAttachment(groupId, postId);
+    if (!attachment) throw new Error("找不到討論附件");
+
+    const uploadsDirectory = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../uploads",
+    );
+    const filePath = path.resolve(uploadsDirectory, path.basename(attachment.filePath));
+    if (!filePath.startsWith(`${uploadsDirectory}${path.sep}`)) {
+      throw new Error("找不到討論附件");
+    }
+    return { filePath, fileName: path.basename(attachment.fileName || "attachment.pdf") };
   },
 
   async deleteGroupDiscussionPost(courseCode, groupId, postId, user) {

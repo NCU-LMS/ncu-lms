@@ -55,6 +55,8 @@ const MIGRATIONS = [
     student_id VARCHAR(128) NOT NULL,
     parent_post_id INT NULL,
     content TEXT NOT NULL,
+    attachment_file_name VARCHAR(255) NULL,
+    attachment_file_path VARCHAR(500) NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     KEY idx_group_discussion_posts_group (group_id, created_at),
     KEY idx_group_discussion_posts_parent (parent_post_id),
@@ -63,6 +65,8 @@ const MIGRATIONS = [
     CONSTRAINT fk_group_discussion_posts_parent
       FOREIGN KEY (parent_post_id) REFERENCES course_group_discussion_posts(id) ON DELETE CASCADE
   )`,
+  "ALTER TABLE course_group_discussion_posts ADD COLUMN attachment_file_name VARCHAR(255) NULL",
+  "ALTER TABLE course_group_discussion_posts ADD COLUMN attachment_file_path VARCHAR(500) NULL",
   "ALTER TABLE courses ADD COLUMN student_group_creation_enabled TINYINT(1) NOT NULL DEFAULT 0",
   "ALTER TABLE homeworks ADD COLUMN is_group_homework TINYINT(1) NOT NULL DEFAULT 0",
   "ALTER TABLE homework_submissions ADD COLUMN group_id INT NULL",

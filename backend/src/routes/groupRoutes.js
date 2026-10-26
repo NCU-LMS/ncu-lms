@@ -1,7 +1,7 @@
 import express from "express";
 import { GroupController } from "../controllers/groupController.js";
 import { requireRole } from "../middlewares/requireRole.js";
-import { upload } from "../middlewares/upload.js";
+import { upload, uploadPdf, verifyPdfContent } from "../middlewares/upload.js";
 
 const router = express.Router({ mergeParams: true });
 
@@ -12,7 +12,14 @@ router.get("/max-members", GroupController.getCourseMaxMembers);
 router.put("/max-members", requireRole("teacher", "ta"), GroupController.setCourseMaxMembers);
 router.get("/homeworks", GroupController.getGroupHomeworks);
 router.get("/:groupId/discussion", GroupController.getGroupDiscussion);
-router.post("/:groupId/discussion", GroupController.addGroupDiscussionPost);
+router.post(
+  "/:groupId/discussion",
+  GroupController.authorizeGroupDiscussion,
+  uploadPdf.single("file"),
+  verifyPdfContent,
+  GroupController.addGroupDiscussionPost,
+);
+router.get("/:groupId/discussion/attachments/:postId/download", GroupController.downloadGroupDiscussionAttachment);
 router.delete("/:groupId/discussion/:postId", GroupController.deleteGroupDiscussionPost);
 router.get("/:groupId/homeworks/:hwId", GroupController.getGroupHomework);
 router.post("/:groupId/homeworks/:hwId/submissions", requireRole("student"), upload.any(), GroupController.submitGroupHomework);
@@ -29,5 +36,6 @@ router.delete("/:groupId/applications/:applicationId", requireRole("student"), G
 router.delete("/:groupId", requireRole("teacher", "ta"), GroupController.deleteGroup);
 router.post("/:groupId/members/me", requireRole("student", "ta"), GroupController.joinGroup);
 router.delete("/:groupId/members/me", requireRole("student", "ta"), GroupController.leaveGroup);
+router.delete("/:groupId/members/:studentId", requireRole("student"), GroupController.kickMember);
 
 export default router;
