@@ -35,10 +35,38 @@ cd backend
 node scripts/seedAdmin.js <帳號> <姓名> <密碼>
 ```
 
-- 本機開發想一次建立測試帳號（1 位管理員 `admin01`、2 位老師 `teacher01~02`、5 位學生 `student01~05`，email 為 `<帳號>@example.com`，密碼皆為 `12345678`；另預建 `TEST101`、`TEST102` 兩門課，5 位學生都選修，`student01` 為助教）：`cd backend && node scripts/seedTestAccounts.js`（可重複執行，已存在的帳號會略過；**請勿在正式環境執行**）。
 - 管理員登入後可在「帳號管理」逐一建立帳號，或上傳學員名單 Excel 批次建立（學生、授課老師）。
 - 管理員在「所有課程」建立課程；課程的「學生名冊」可上傳同一份 Excel 同步修課名單。
 - 助教不是另一種帳號：由授課老師在課程的「學生名冊」把學生勾選為該課助教，同一個帳號可以在別門課當一般學生。
+
+### 4) 建立測試帳號（本機開發用）
+
+一次建立下列測試帳號與課程：
+
+```sh
+cd backend
+node scripts/seedTestAccounts.js
+```
+
+可重複執行，已存在的帳號會略過；**請勿在正式環境執行**。
+
+| 角色 | 帳號 | 姓名 | 密碼 | Email |
+| --- | --- | --- | --- | --- |
+| 管理員 | `admin01` | 測試管理員 | `12345678` | `admin01@example.com` |
+| 老師 | `teacher01` | 測試老師一 | `12345678` | `teacher01@example.com` |
+| 老師 | `teacher02` | 測試老師二 | `12345678` | `teacher02@example.com` |
+| 學生（兩門課的助教） | `student01` | 測試學生1 | `12345678` | `student01@example.com` |
+| 學生 | `student02` | 測試學生2 | `12345678` | `student02@example.com` |
+| 學生 | `student03` | 測試學生3 | `12345678` | `student03@example.com` |
+| 學生 | `student04` | 測試學生4 | `12345678` | `student04@example.com` |
+| 學生 | `student05` | 測試學生5 | `12345678` | `student05@example.com` |
+
+| 課程代碼 | 課程名稱 | 授課老師 | 修課學生 | 助教 |
+| --- | --- | --- | --- | --- |
+| `TEST101` | 測試課程一 | `teacher01` | `student01~05` | `student01` |
+| `TEST102` | 測試課程二 | `teacher02` | `student01~05` | `student01` |
+
+測試帳號登入後不需要強制修改密碼。
 
 ## 根目錄快捷指令
 
