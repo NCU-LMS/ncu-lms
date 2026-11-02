@@ -3,9 +3,10 @@
     <header class="bg-white flex justify-between items-center px-6 py-3 border-b text-sm h-12">
       <router-link to ="/" class="font-bold text-base p-1 border-2 border-transparent focus:border-black rounded ">國立中央大學 「LMS 計畫」</router-link>
     </header>
-    <div class="flex justify-start items-start mt-10 ml-10 gap-8">
-      <div class="w-full max-w-[300px] p-4 bg-white border border-gray-200 rounded-xl shadow-lg">
-        
+
+    <main class="flex flex-col md:flex-row justify-start items-start mt-10 mx-4 md:mx-10 gap-8">
+      <!-- 左側：登入-->
+      <section class="w-full md:max-w-[300px] p-4 bg-white border border-gray-200 rounded-xl shadow-lg">
         <!-- 已登入 (isLoggedIn 為 true) -->
         <template v-if="isLoggedIn">
           <h2 class="text-2xl font-bold text-gray-800 mb-6">歡迎, {{ user.name }}</h2>
@@ -97,13 +98,9 @@
             提供建議/bug反饋
           </a>
         </div>
-      </div>
-      <div class="w-full max-w-[840px] p-4 bg-white border border-gray-200 rounded-xl shadow-lg">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">最新公告</h2>
-        <hr class="my-6 border-t-4 border-blue-500" />
-        <a> - 等待更新 - </a>
-      </div>
-    </div>
+      </section>
+      <SiteAnnouncements :is-admin = "user.role === 'admin'" />
+    </main>
   </div>
 </template>
 
@@ -113,6 +110,7 @@ import { ref, onMounted } from "vue"
 import { useRouter } from "vue-router"
 import api from "@/api/client.js"
 import { setAccessToken, setMustChangePassword } from "@/utils/auth.js"
+import SiteAnnouncements from "../components/SiteAnnouncement.vue"
 
 const router = useRouter()
 
@@ -182,12 +180,14 @@ const login = async () => {
     const store = rememberMe.value ? localStorage : sessionStorage
     store.setItem("user", data.username)
     setMustChangePassword(Boolean(data.mustChangePassword))
-
+    loadUser()
+    /*
     if (data.mustChangePassword) {
-      window.location.href = '/change-password'
+      router.push('/change-password')
     } else {
-      window.location.href = data.role === 'admin' ? '/admin/accounts' : '/dashboard'
+      router.push(data.role === 'admin' ? '/admin/accounts' : '/dashboard')
     }
+      */
   } catch (error) {
     const msg = error.response?.data?.message || "連線失敗"
     alert(msg)
@@ -197,9 +197,10 @@ const login = async () => {
 
 // 進入課程按鈕
 const enterCourse = () => {
-  window.location.href = user.value.role === 'admin' ? '/admin/accounts' : '/dashboard'
+  router.push(user.value.role === 'admin' ? '/admin/accounts' : '/dashboard')
 }
 
+// logout清除登入資訊
 const logout = () => {
   clearAuth()
   user.value = { name: "", user_id: "", role: "" }
