@@ -116,21 +116,6 @@ const formatRole = (role) => {
 const formatDate = (raw) => new Date(raw).toLocaleDateString()
 
 // 勾選：把這位學生升為這門課的助教；取消勾選則變回一般修課學生
-const toggleTa = async (student, checked) => {
-  togglingTa.value = student.student_id
-  try {
-    await api.post(`/api/courses/${courseCode}/studentlist/update`, {
-      studentId: student.student_id,
-      role: checked ? 'ta' : 'student'
-    })
-    refreshCourseInfo() // 側欄的助教名單要跟著更新
-  } catch (err) {
-    alert(err.response?.data?.message || "更新助教身分失敗")
-  } finally {
-    await fetchStudents()
-    togglingTa.value = ''
-  }
-}
 
 // 新增或修改學生身分
 const handleManualSubmit = async () => {
@@ -148,10 +133,11 @@ const handleManualSubmit = async () => {
     showAddModal.value = false
     manualForm.value.studentId = ''
     manualForm.value.role = 'student'
-    await fetchStudents()
   } catch (err) {
     alert(err.response?.data?.message || "操作失敗，請檢查學號是否存在")
   } finally {
+    refreshCourseInfo()
+    await fetchStudents()
     isSubmitting.value = false
   }
 }
@@ -219,6 +205,7 @@ onMounted(async () => {
               v-model="manualForm.role" 
               class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#337ab7]"
             >
+              <option value="ta">助教</option>
               <option value="student">修課學生</option>
               <option value="external">校外加選</option>
               <option value="auditor">旁聽生</option>
@@ -284,7 +271,7 @@ onMounted(async () => {
         <div class="flex-1 min-w-[6rem]">姓名</div>
         <div class="w-64">電子郵件</div>
         <div class="w-32 text-center">身分</div>
-        <div v-if="canAssignTa" class="w-14 text-center">助教</div>
+
       </div>
 
       <!-- 學生列表 -->
@@ -302,17 +289,7 @@ onMounted(async () => {
             <span :class="student.role === 'ta' ? 'font-bold text-[#337ab7]' : ''">{{ formatRole(student.role) }}</span>
             <div v-if="student.role === 'dropped' && student.withdrawn_at" class="text-xs text-gray-500">{{ formatDate(student.withdrawn_at) }}</div>
           </div>
-          <div v-if="canAssignTa" class="w-14 text-center">
-            <input
-              v-if="student.role !== 'dropped'"
-              type="checkbox"
-              class="w-4 h-4 cursor-pointer align-middle"
-              :checked="student.role === 'ta'"
-              :disabled="togglingTa === student.student_id"
-              :title="student.role === 'ta' ? '取消助教' : '設為這門課的助教'"
-              @change="toggleTa(student, $event.target.checked)"
-            />
-          </div>
+
         </li>
       </ul>
 
