@@ -149,25 +149,37 @@ export const GroupModel = {
     );
     const [rows] = await pool.execute(
       `SELECT p.id, p.group_id AS groupId, p.student_id AS studentId,
-              p.parent_post_id AS parentPostId, p.content, p.created_at AS createdAt,
-              p.attachment_file_name AS attachmentFileName,
+              p.parent_post_id AS parentPostId,
+              CASE WHEN p.is_deleted = 1 THEN '' ELSE p.content END AS content,
+              p.created_at AS createdAt,
+              CASE WHEN p.is_deleted = 1 THEN NULL ELSE p.attachment_file_name END AS attachmentFileName,
+              p.is_deleted AS isDeleted, p.deleted_by AS deletedBy,
+              p.deleted_at AS deletedAt,
+              COALESCE(ds.name, dt.name, da.username, p.deleted_by) AS deletedByName,
               COALESCE(s.name, t.name, a.username, p.student_id) AS authorName
        FROM course_group_discussion_posts p
        LEFT JOIN students s ON s.student_id = p.student_id
        LEFT JOIN teachers t ON t.teacher_id = p.student_id
        LEFT JOIN accounts a ON a.username = p.student_id
+       LEFT JOIN students ds ON ds.student_id = p.deleted_by
+       LEFT JOIN teachers dt ON dt.teacher_id = p.deleted_by
+       LEFT JOIN accounts da ON da.username = p.deleted_by
        WHERE p.group_id = ?
        ORDER BY p.created_at, p.id`,
       [groupId],
     );
-    return { groupName: groups[0]?.name || `小組 ${groupId}`, posts: rows };
+    return {
+      groupName: groups[0]?.name || `小組 ${groupId}`,
+      posts: rows.map((row) => ({ ...row, isDeleted: Boolean(row.isDeleted) })),
+    };
   },
 
   async getGroupDiscussionAttachment(groupId, postId) {
     const [rows] = await pool.execute(
       `SELECT attachment_file_name AS fileName, attachment_file_path AS filePath
        FROM course_group_discussion_posts
-       WHERE group_id = ? AND id = ? AND attachment_file_path IS NOT NULL`,
+       WHERE group_id = ? AND id = ? AND is_deleted = 0
+         AND attachment_file_path IS NOT NULL`,
       [groupId, postId],
     );
     return rows[0] || null;
@@ -201,9 +213,11 @@ export const GroupModel = {
 
   async deleteGroupDiscussionPost(groupId, postId, studentId, isStaff) {
     const [result] = await pool.execute(
-      `DELETE FROM course_group_discussion_posts
-       WHERE group_id = ? AND id = ? AND (? = 1 OR student_id = ?)`,
-      [groupId, postId, isStaff ? 1 : 0, studentId],
+      `UPDATE course_group_discussion_posts
+       SET is_deleted = 1, deleted_by = ?, deleted_at = CURRENT_TIMESTAMP
+       WHERE group_id = ? AND id = ? AND is_deleted = 0
+         AND (? = 1 OR student_id = ?)`,
+      [studentId, groupId, postId, isStaff ? 1 : 0, studentId],
     );
     return result.affectedRows > 0;
   },
