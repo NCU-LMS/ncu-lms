@@ -144,7 +144,7 @@ const posting = ref(false)
 const downloadingPostId = ref(null)
 const errorMessage = ref('')
 const attachments = computed(() =>
-  posts.value.filter((post) => post.attachmentFileName),
+  posts.value.filter((post) => !post.isDeleted && post.attachmentFileName),
 )
 
 const threadTree = computed(() => {
@@ -233,7 +233,7 @@ const downloadAttachment = async (attachment) => {
 }
 
 const deletePost = async (post) => {
-  if (!confirm('刪除這則留言及其回覆？')) return
+  if (!confirm('確定刪除此留言？只會隱藏這則留言，底下的回覆會保留。')) return
   try {
     await api.delete(`/api/courses/${courseId}/groups/${groupId}/discussion/${post.id}`)
     await loadDiscussion()
