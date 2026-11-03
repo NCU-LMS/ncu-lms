@@ -4,7 +4,7 @@
       <strong class="text-sm text-gray-800">{{ post.authorName }}</strong>
       <span class="text-xs text-gray-400">{{ new Date(post.createdAt).toLocaleString() }}</span>
       <button
-        v-if="isStaff || post.studentId === username"
+        v-if="!post.isDeleted && (isStaff || post.studentId === username)"
         type="button"
         class="ml-auto text-xs font-bold text-red-600 hover:underline"
         @click="$emit('delete', post)"
@@ -12,9 +12,16 @@
         刪除
       </button>
     </header>
-    <p class="text-gray-700 whitespace-pre-wrap break-words">{{ post.content }}</p>
+    <div v-if="post.isDeleted" class="rounded bg-gray-50 border border-dashed px-3 py-2 text-sm text-gray-500">
+      <p>此留言已刪除</p>
+      <p v-if="post.deletedByName || post.deletedBy || post.deletedAt" class="mt-1 text-xs">
+        刪除記錄：{{ post.deletedByName || post.deletedBy || '未知使用者' }}
+        <span v-if="post.deletedAt">・{{ new Date(post.deletedAt).toLocaleString() }}</span>
+      </p>
+    </div>
+    <p v-else class="text-gray-700 whitespace-pre-wrap break-words">{{ post.content }}</p>
     <button
-      v-if="post.attachmentFileName"
+      v-if="!post.isDeleted && post.attachmentFileName"
       type="button"
       class="mt-2 inline-flex items-center gap-1 text-sm font-bold text-[#337ab7] hover:underline disabled:opacity-50"
       :disabled="downloading"
@@ -23,7 +30,7 @@
       {{ downloading ? '下載中...' : `下載附件：${post.attachmentFileName}` }}
     </button>
 
-    <form class="mt-3 flex flex-wrap items-center gap-2" @submit.prevent="reply">
+    <form v-if="!post.isDeleted" class="mt-3 flex flex-wrap items-center gap-2" @submit.prevent="reply">
       <input
         v-model="replyText"
         maxlength="10000"
@@ -48,7 +55,7 @@
         回覆
       </button>
     </form>
-    <p v-if="replyAttachment" class="mb-3 text-xs text-gray-500">
+    <p v-if="!post.isDeleted && replyAttachment" class="mb-3 text-xs text-gray-500">
       已選擇：{{ replyAttachment.name }}
     </p>
 
