@@ -161,6 +161,7 @@ const sortedList = computed(() =>
   )
 )
 
+// 設置公告日期
 const formatDate = (raw) => {
   if (!raw) return ''
   const d = new Date(raw)
@@ -174,7 +175,7 @@ const fetchAnnouncements = async () => {
   loading.value = true
   loadError.value = ''
   try {
-    const { data } = await api.get('/api/site-announcements')
+    const { data } = await api.get('/api/site_announcements')
     announcements.value = data.announcements || []
   } catch (err) {
     console.error('取得公告失敗', err)
@@ -231,9 +232,9 @@ const save = async () => {
       is_pinned: form.value.is_pinned,
     }
     if (form.value.id) {
-      await api.put(`/api/admin/site-announcements/${form.value.id}`, payload)
+      await api.put(`/api/site_announcements/admin/${form.value.id}`, payload)
     } else {
-      await api.post('/api/admin/site-announcements', payload)
+      await api.post('/api/site_announcements/admin', payload)
     }
     closeForm()
     await fetchAnnouncements()
@@ -247,7 +248,7 @@ const save = async () => {
 const remove = async (item) => {
   if (!confirm(`確定刪除「${item.title}」？`)) return
   try {
-    await api.delete(`/api/admin/site-announcements/${item.id}`)
+    await api.delete(`/api/site_announcements/admin/${item.id}`)
     await fetchAnnouncements()
   } catch (err) {
     alert(err.response?.data?.message || '刪除公告失敗')
