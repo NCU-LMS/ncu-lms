@@ -386,6 +386,10 @@ const initDB = async () => {
     } catch (e) { /* 欄位已存在就忽略 */ }
 
     try {
+        await pool.execute("ALTER TABLE announcements ADD COLUMN attachments_json TEXT NULL");
+    } catch (e) { /* 欄位已存在就忽略 */ }
+
+    try {
         await pool.execute(`
         ALTER TABLE course_ai_prompts
         ADD COLUMN send_announcements BOOLEAN NOT NULL DEFAULT FALSE

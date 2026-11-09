@@ -204,7 +204,15 @@
       </div>
     </div>
 
-    <div class="flex justify-end gap-3 mt-2">
+    <div class="flex items-center justify-between gap-3 mt-2 flex-wrap">
+      <label class="flex items-start gap-2 text-sm text-gray-700">
+        <input v-model="notifyStudents" type="checkbox" class="mt-0.5" />
+        <span>
+          發布通知給學生
+          <span class="block text-xs text-gray-500">預設會通知。取消勾選則只發布，不發送通知。</span>
+        </span>
+      </label>
+      <div class="flex gap-3">
       <button
         type="button"
         @click="goBack"
@@ -219,6 +227,7 @@
       >
         確認發布作業
       </button>
+      </div>
     </div>
 
   </div>
@@ -235,6 +244,7 @@ const courseId = route.params.id
 
 /** 作業層級附件（後端欄位 homework_files） */
 const homeworkFiles = ref([])
+const notifyStudents = ref(true)
 
 const form = ref({
   title: '',
@@ -318,6 +328,7 @@ const submitAssignment = async () => {
 
   formData.append('description', form.value.description || '')
   formData.append('isGroupHomework', String(form.value.isGroupHomework))
+  formData.append('notify', notifyStudents.value ? 'true' : 'false')
 
   const questionsData = form.value.questions.map(q => ({
     title: q.title,

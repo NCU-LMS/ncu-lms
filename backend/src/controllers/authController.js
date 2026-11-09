@@ -43,12 +43,8 @@ export const AuthController = {
 
   async forgotPassword(req, res) {
     try {
-      const { username, recoveryCode, password, confirmPassword } = req.body;
-      const result = await AuthService.resetPasswordWithRecoveryCode({
-        username,
-        recoveryCode,
-        password,
-        confirmPassword,
+      const result = await AuthService.requestPasswordReset({
+        email: req.body?.email ?? req.body?.username,
       });
       res.json(result);
     } catch (error) {
@@ -89,8 +85,10 @@ export const AuthController = {
 
   async resetPassword(req, res) {
     try {
-      const { token, password, confirmPassword } = req.body;
-      const result = await AuthService.resetPasswordWithToken({ token, password, confirmPassword });
+      const { email, code, token, password, confirmPassword } = req.body;
+      const result = code || email
+        ? await AuthService.resetPasswordWithCode({ email, code, password, confirmPassword })
+        : await AuthService.resetPasswordWithToken({ token, password, confirmPassword });
       res.json(result);
     } catch (error) {
       res.status(400).json({ message: error.message });

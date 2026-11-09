@@ -1,7 +1,7 @@
 import { pool } from "../config/db.js";
 import { HomeworkModel } from "../models/homeworkModel.js";
 import { appendSubmissionHistory } from "../utils/dbHistoryLogger.js";
-import { NotificationService, previewText } from "./notificationService.js";
+import { NotificationService, previewText, wantsNotification } from "./notificationService.js";
 
 function deadlineIsInFuture(value) {
   if (value == null || value === "") return false;
@@ -66,19 +66,21 @@ export const HomeworkService = {
 
       await connection.commit();
 
-      try {
-        const courseCode = String(courseId);
-        await NotificationService.notifyByCourseCode({
-          courseCode,
-          type: "homework",
-          refId: hwId,
-          headline: `新作業：${title}`,
-          message: previewText(description),
-          excludeUsername: actorUsername,
-          linkPath: `/course/${courseCode}/homework/${hwId}`,
-        });
-      } catch (notifyError) {
-        console.error("[notify] 作業通知失敗", notifyError?.message || notifyError);
+      if (wantsNotification(bodyData.notify)) {
+        try {
+          const courseCode = String(courseId);
+          await NotificationService.notifyByCourseCode({
+            courseCode,
+            type: "homework",
+            refId: hwId,
+            headline: `新作業：${title}`,
+            message: previewText(description),
+            excludeUsername: actorUsername,
+            linkPath: `/course/${courseCode}/homework/${hwId}`,
+          });
+        } catch (notifyError) {
+          console.error("[notify] 作業通知失敗", notifyError?.message || notifyError);
+        }
       }
 
       return hwId;
@@ -208,7 +210,7 @@ export const HomeworkService = {
   },
 
   // 老師更新作業
-  async updateHomework(hwId, bodyData, files) {
+  async updateHomework(hwId, bodyData, files, actorUsername = null) {
     const { title, deadline, description, questions, isGroupHomework } = bodyData;
     const existing = await HomeworkModel.getHomeworkById(hwId);
     if (!existing) throw new Error("找不到作業");
@@ -252,6 +254,25 @@ export const HomeworkService = {
       }
 
       await connection.commit();
+
+      if (wantsNotification(bodyData.notify)) {
+        try {
+          const courseCode = String(existing.course_id);
+          const nextTitle = title ?? existing.title;
+          const nextDescription = description !== undefined ? description : existing.description;
+          await NotificationService.notifyByCourseCode({
+            courseCode,
+            type: "homework",
+            refId: hwId,
+            headline: `作業已更新：${nextTitle}`,
+            message: previewText(nextDescription),
+            excludeUsername: actorUsername,
+            linkPath: `/course/${courseCode}/homework/${hwId}`,
+          });
+        } catch (notifyError) {
+          console.error("[notify] 作業更新通知失敗", notifyError?.message || notifyError);
+        }
+      }
     } catch (error) {
       if (connection) await connection.rollback();
       throw error;

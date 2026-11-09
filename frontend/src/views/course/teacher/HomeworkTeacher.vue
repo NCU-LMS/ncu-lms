@@ -38,7 +38,7 @@
           :disabled="attachmentDownloading[i]"
           @click="onDownloadAttachment(att, i)"
         >
-          📎 {{ att.file_name || att.fileName || '附件' }}{{ attachmentDownloading[i] ? '（下載中...）' : '' }}
+          <AttachmentIcon /> {{ att.file_name || att.fileName || '附件' }}{{ attachmentDownloading[i] ? '（下載中...）' : '' }}
         </button>
       </div>
     </div>
@@ -211,6 +211,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/client.js'
 import { downloadFile, downloadApi } from '@/utils/files.js'
+import AttachmentIcon from '@/components/AttachmentIcon.vue'
 
 const route = useRoute()
 const router = useRouter()

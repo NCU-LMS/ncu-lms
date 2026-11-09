@@ -134,7 +134,7 @@ export const HomeworkAiController = {
       const sub = await HomeworkModel.getStudentSubmission(hwId, studentId);
 
       if (!sub || !sub.is_submitted) {
-        return res.status(404).json({ message: "請先送出作業後再進行預估評分" });
+        return res.status(404).json({ message: "請先送出作業後再產生 AI參考評價" });
       }
 
       const out = await HomeworkAiService.runAiGradeAllQuestions(sub.id, hwId);

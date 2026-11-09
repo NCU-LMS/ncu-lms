@@ -105,6 +105,8 @@ const MIGRATIONS = [
   "ALTER TABLE discussion_rooms ADD COLUMN created_by VARCHAR(64) NULL",
   // 公告實際發布者；舊公告維持 NULL，畫面仍顯示授課老師
   "ALTER TABLE announcements ADD COLUMN author_username VARCHAR(64) NULL",
+  // 公告附件（圖檔、PDF），JSON 陣列 [{ file_name, file_path }]
+  "ALTER TABLE announcements ADD COLUMN attachments_json TEXT NULL",
 ];
 
 const IGNORABLE_CODES = new Set([

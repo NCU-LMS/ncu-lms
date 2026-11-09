@@ -36,6 +36,14 @@ export const AuthModel = {
     return rows[0];
   },
 
+  async findAccountByEmail(email) {
+    const [rows] = await pool.execute(
+      "SELECT * FROM accounts WHERE email IS NOT NULL AND LOWER(email) = LOWER(?) LIMIT 1",
+      [email],
+    );
+    return rows[0];
+  },
+
   async getRoleByUsername(username) {
     const [rows] = await pool.execute("SELECT role FROM accounts WHERE username = ?", [username]);
     return rows[0]?.role;
@@ -77,10 +85,10 @@ export const AuthModel = {
     await pool.execute("DELETE FROM password_reset_tokens WHERE account_id = ?", [accountId]);
   },
 
-  async insertPasswordResetToken(accountId, tokenHash, expiresAt) {
+  async insertPasswordResetToken(accountId, tokenHash) {
     await pool.execute(
-      "INSERT INTO password_reset_tokens (account_id, token_hash, expires_at) VALUES (?, ?, ?)",
-      [accountId, tokenHash, expiresAt],
+      "INSERT INTO password_reset_tokens (account_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))",
+      [accountId, tokenHash],
     );
   },
 

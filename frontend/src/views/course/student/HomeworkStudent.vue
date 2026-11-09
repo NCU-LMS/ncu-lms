@@ -24,11 +24,11 @@
           <li v-for="(att, i) in homeworkAttachments" :key="i">
             <button
               type="button"
-              class="text-sm text-blue-600 hover:underline font-medium disabled:opacity-60"
+              class="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline font-medium disabled:opacity-60"
               :disabled="downloadingIndex === i"
               @click="onDownloadAttachment(att, i)"
             >
-              📎 {{ attachmentName(att) }}{{ downloadingIndex === i ? '（下載中...）' : '' }}
+              <AttachmentIcon /> {{ attachmentName(att) }}{{ downloadingIndex === i ? '（下載中...）' : '' }}
             </button>
           </li>
         </ul>
@@ -74,7 +74,7 @@
     </div>
 
     <div v-if="homeworkData.isSubmitted && !homeworkData.isGraded" class="bg-indigo-50 border border-indigo-200 rounded p-5 shadow-sm">
-      <h3 class="text-lg font-bold text-indigo-800 mb-3 border-b border-indigo-200 pb-2">AI 預估評分</h3>
+      <h3 class="text-lg font-bold text-indigo-800 mb-3 border-b border-indigo-200 pb-2">AI參考評價</h3>
       <div class="mb-3">
         <button
           type="button"
@@ -82,13 +82,13 @@
           :disabled="estimating"
           @click="estimateMyScore"
         >
-          {{ estimating ? '預估中...' : '產生我的預估評分' }}
+          {{ estimating ? '評價中...' : '產生 AI參考評價' }}
         </button>
       </div>
       <div v-if="homeworkData.aiEstimatedScore !== null && homeworkData.aiEstimatedScore !== undefined">
       <div class="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <p class="text-xs text-indigo-700">最後一次 AI 預估分數（僅供參考，不代表最終成績）</p>
+          <p class="text-xs text-indigo-700">最後一次 AI參考評價（僅供參考，不代表最終成績）</p>
           <p class="text-3xl font-black text-indigo-600 mt-1">{{ homeworkData.aiEstimatedScore }}</p>
         </div>
         <p class="text-xs text-indigo-700">{{ homeworkData.aiEstimatedAt ? `更新時間：${homeworkData.aiEstimatedAt}` : '' }}</p>
@@ -97,7 +97,7 @@
         {{ homeworkData.aiEstimatedReason }}
       </p>
       </div>
-      <p v-else class="text-sm text-indigo-700">尚未產生預估評分，請先點擊上方按鈕。</p>
+      <p v-else class="text-sm text-indigo-700">尚未產生 AI參考評價，請先點擊上方按鈕。</p>
     </div>
 
     <div  class="bg-white border rounded shadow-sm overflow-hidden">
@@ -112,11 +112,11 @@
           <div v-if="legacyQuestionAttachment(q)" class="mb-4">
             <button
               type="button"
-              class="text-sm text-blue-600 hover:underline flex items-center gap-1 disabled:opacity-60"
+              class="text-sm text-blue-600 hover:underline inline-flex items-center gap-1 disabled:opacity-60"
               :disabled="legacyDownloadingId === q.id"
               @click="onDownloadLegacyQuestion(q)"
             >
-              📎 下載題目附件（舊版）：{{ q.fileName || q.file_name }}{{ legacyDownloadingId === q.id ? '（下載中...）' : '' }}
+              <AttachmentIcon /> 下載題目附件（舊版）：{{ q.fileName || q.file_name }}{{ legacyDownloadingId === q.id ? '（下載中...）' : '' }}
             </button>
           </div>
 
@@ -256,6 +256,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/api/client.js'
 import { downloadFile } from '@/utils/files.js'
+import AttachmentIcon from '@/components/AttachmentIcon.vue'
 
 const route = useRoute()
 const hwId = route.params.hwId
@@ -531,7 +532,7 @@ const submitHomework = async () => {
 
 const estimateMyScore = async () => {
   if (!homeworkData.value.isSubmitted) {
-    alert('請先送出作業後再進行預估評分')
+    alert('請先送出作業後再產生 AI參考評價')
     return
   }
   estimating.value = true

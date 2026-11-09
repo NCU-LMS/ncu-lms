@@ -4,7 +4,7 @@ export const AnnouncementModel = {
   // 取得課程公告（學生視角，包含已讀狀態）
   async getForStudent(courseId, studentDbId) {
     const [rows] = await pool.execute(
-      `SELECT a.id, a.title, a.content, a.is_pinned, a.created_at,
+      `SELECT a.id, a.title, a.content, a.is_pinned, a.created_at, a.attachments_json,
               COALESCE(
                 (SELECT name FROM teachers WHERE teacher_id = a.author_username LIMIT 1),
                 (SELECT name FROM students WHERE student_id = a.author_username LIMIT 1),
@@ -24,7 +24,7 @@ export const AnnouncementModel = {
   // 取得課程公告（老師視角，全部預設已讀）
   async getForCourse(courseId) {
     const [rows] = await pool.execute(
-      `SELECT a.id, a.title, a.content, a.is_pinned, a.created_at,
+      `SELECT a.id, a.title, a.content, a.is_pinned, a.created_at, a.attachments_json,
               COALESCE(
                 (SELECT name FROM teachers WHERE teacher_id = a.author_username LIMIT 1),
                 (SELECT name FROM students WHERE student_id = a.author_username LIMIT 1),
@@ -48,20 +48,32 @@ export const AnnouncementModel = {
     );
   },
 
+  async findInCourse(announcementId, courseId) {
+    const [rows] = await pool.execute(
+      "SELECT id, title, content, is_pinned, attachments_json FROM announcements WHERE id = ? AND course_id = ?",
+      [announcementId, courseId],
+    );
+    return rows[0] || null;
+  },
+
   // 新增公告
-  async create(courseId, teacherDbId, title, content, isPinned, authorUsername, conn = pool) {
+  async create(courseId, teacherDbId, title, content, isPinned, authorUsername, attachmentsJson = "[]", conn = pool) {
     return conn.execute(
-      `INSERT INTO announcements (course_id, teacher_id, title, content, is_pinned, author_username) VALUES (?, ?, ?, ?, ?, ?)`,
-      [courseId, teacherDbId, title, content || "", Boolean(isPinned), authorUsername || null]
+      `INSERT INTO announcements (course_id, teacher_id, title, content, is_pinned, author_username, attachments_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [courseId, teacherDbId, title, content || "", isPinned ? 1 : 0, authorUsername || null, attachmentsJson || "[]"],
     );
   },
 
-  async update(announcementId, courseId, title, content, isPinned) {
+  async update(announcementId, courseId, title, content, isPinned, attachmentsJson) {
     const [result] = await pool.execute(
-      `UPDATE announcements SET title = ?, content = ?, is_pinned = ? WHERE id = ? AND course_id = ?`,
-      [title, content || "", Boolean(isPinned), announcementId, courseId],
+      `UPDATE announcements SET title = ?, content = ?, is_pinned = ?, attachments_json = ? WHERE id = ? AND course_id = ?`,
+      [title, content || "", isPinned ? 1 : 0, attachmentsJson || "[]", announcementId, courseId],
     );
     return result.affectedRows;
+  },
+
+  async clearReads(announcementId, conn = pool) {
+    await conn.execute("DELETE FROM announcement_reads WHERE announcement_id = ?", [announcementId]);
   },
 
   async remove(announcementId, courseId) {
