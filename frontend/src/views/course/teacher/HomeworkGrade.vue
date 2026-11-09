@@ -4,7 +4,10 @@
     <div class="bg-blue-50 border border-blue-200 rounded p-5 flex justify-between items-center shadow-sm">
       <div>
         <h2 class="text-xl font-bold text-[#337ab7] mb-1">正在批改：{{ studentData.name || '未命名' }}（{{ studentData.id }}）</h2>
-        <p class="text-sm text-gray-600">繳交時間：{{ studentData.uploadedAt }}</p>
+        <p class="text-sm text-gray-600">
+          繳交時間：{{ studentData.uploadedAt }}
+          <span v-if="studentData.isLate" class="ml-1 text-red-600 font-bold">（遲交）</span>
+        </p>
       </div>
       <div v-if="gradingForm.score" class="text-right">
         <span class="block text-sm text-gray-500 mb-1">目前成績</span>
@@ -200,7 +203,8 @@ const onDownloadAnswer = async (ans) => {
 
 const studentData = ref({
   id: '',
-  uploadedAt: ''
+  uploadedAt: '',
+  isLate: false,
 })
 
 const aiLoadingId = ref(null)
@@ -310,7 +314,8 @@ const loadData = async () => {
     studentData.value = {
       id: subData.studentId,
       name: subData.studentName || '',
-      uploadedAt: subData.submittedAt ? new Date(subData.submittedAt).toLocaleString() : '-'
+      uploadedAt: subData.submittedAt ? new Date(subData.submittedAt).toLocaleString() : '-',
+      isLate: Boolean(Number(subData.isLate)),
     }
 
     gradingForm.value.score = subData.score || ''

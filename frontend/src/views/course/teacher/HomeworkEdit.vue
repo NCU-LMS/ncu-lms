@@ -46,6 +46,14 @@
             </span>
           </label>
 
+          <label class="flex items-start gap-2 text-sm text-gray-700">
+            <input v-model="form.allowLateSubmission" type="checkbox" class="mt-0.5" />
+            <span>
+              允許補交
+              <span class="block text-xs text-gray-500">截止後學生仍可繳交，繳交紀錄會標示「遲交」與實際繳交時間。</span>
+            </span>
+          </label>
+
           <div>
             <label class="block text-[15px] font-bold text-gray-700 mb-1.5">
               統一附件 <span class="text-gray-500 font-normal text-sm">（新檔會加在原附件後面，不會覆蓋）</span>
@@ -188,6 +196,7 @@ const form = ref({
   deadline: '',
   description: '',
   isGroupHomework: false,
+  allowLateSubmission: false,
   questions: [
     { title: '', description: '', answerFormat: 'file', gradingPrompt: '', discussionPrompt: '' },
   ],
@@ -228,6 +237,7 @@ const loadHomework = async () => {
       deadline: deadlineToInputValue(data.deadline),
       description: data.description || '',
       isGroupHomework: Boolean(data.is_group_homework),
+      allowLateSubmission: Boolean(data.allow_late_submission),
       questions: qs,
     }
     existingAttachments.value = Array.isArray(data.attachments) ? [...data.attachments] : []
@@ -280,6 +290,7 @@ const saveHomework = async () => {
   formData.append('deadline', formattedDeadline)
   formData.append('description', form.value.description || '')
   formData.append('isGroupHomework', String(form.value.isGroupHomework))
+  formData.append('allowLateSubmission', String(form.value.allowLateSubmission))
   formData.append('notify', notifyStudents.value ? 'true' : 'false')
 
   const questionsData = form.value.questions.map((q) => ({

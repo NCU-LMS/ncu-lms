@@ -47,6 +47,14 @@
           </span>
         </label>
 
+        <label class="flex items-start gap-2 text-sm text-gray-700">
+          <input v-model="form.allowLateSubmission" type="checkbox" class="mt-0.5" />
+          <span>
+            允許補交
+            <span class="block text-xs text-gray-500">截止後學生仍可繳交，繳交紀錄會標示「遲交」與實際繳交時間。</span>
+          </span>
+        </label>
+
         <div>
           <label class="block text-[15px] font-bold text-gray-700 mb-1.5">
             統一附件 <span class="text-gray-500 font-normal text-sm">（選填，供全班學生下載，可複選）</span>
@@ -251,6 +259,7 @@ const form = ref({
   deadline: '',
   description: '',
   isGroupHomework: false,
+  allowLateSubmission: false,
   questions: [
     {
       title: '',
@@ -328,6 +337,7 @@ const submitAssignment = async () => {
 
   formData.append('description', form.value.description || '')
   formData.append('isGroupHomework', String(form.value.isGroupHomework))
+  formData.append('allowLateSubmission', String(form.value.allowLateSubmission))
   formData.append('notify', notifyStudents.value ? 'true' : 'false')
 
   const questionsData = form.value.questions.map(q => ({

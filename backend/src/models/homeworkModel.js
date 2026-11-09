@@ -2,10 +2,10 @@ import { pool } from "../config/db.js";
 
 export const HomeworkModel = {
   // 建立作業主檔 (需傳入 connection 以支援 Transaction)
-  async createHomework(connection, courseId, title, deadline, description, isGroupHomework = false) {
+  async createHomework(connection, courseId, title, deadline, description, isGroupHomework = false, allowLateSubmission = false) {
     const [result] = await connection.execute(
-      "INSERT INTO homeworks (course_id, title, deadline, description, attachments_json, is_group_homework) VALUES (?, ?, ?, ?, ?, ?)",
-      [courseId, title, deadline, description || '', "[]", isGroupHomework ? 1 : 0]
+      "INSERT INTO homeworks (course_id, title, deadline, description, attachments_json, is_group_homework, allow_late_submission) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [courseId, title, deadline, description || '', "[]", isGroupHomework ? 1 : 0, allowLateSubmission ? 1 : 0]
     );
     return result.insertId;
   },
@@ -17,17 +17,17 @@ export const HomeworkModel = {
     );
   },
 
-  async updateHomeworkById(connection, hwId, { title, deadline, description, resetGradeNotice = false }) {
-    if (resetGradeNotice) {
-      await connection.execute(
-        "UPDATE homeworks SET title = ?, deadline = ?, description = ?, grade_notified_at = NULL WHERE id = ?",
-        [title, deadline, description, hwId]
-      );
-      return;
-    }
+  async updateHomeworkById(
+    connection,
+    hwId,
+    { title, deadline, description, isGroupHomework = false, allowLateSubmission = false, resetGradeNotice = false },
+  ) {
     await connection.execute(
-      "UPDATE homeworks SET title = ?, deadline = ?, description = ?, is_group_homework = ? WHERE id = ?",
-      [title, deadline, description, isGroupHomework ? 1 : 0, hwId]
+      `UPDATE homeworks
+       SET title = ?, deadline = ?, description = ?, is_group_homework = ?, allow_late_submission = ?
+           ${resetGradeNotice ? ", grade_notified_at = NULL" : ""}
+       WHERE id = ?`,
+      [title, deadline, description, isGroupHomework ? 1 : 0, allowLateSubmission ? 1 : 0, hwId]
     );
   },
 
@@ -154,17 +154,20 @@ export const HomeworkModel = {
     const [rows] = await pool.execute(
       `
       SELECT
-        id,
-        answer_text,
-        file_name,
-        file_path,
-        files_json,
-        score,
-        feedback,
-        graded_details,
-        is_submitted
-      FROM homework_submissions
-      WHERE homework_id = ? AND student_id = ?
+        hs.id,
+        hs.answer_text,
+        hs.file_name,
+        hs.file_path,
+        hs.files_json,
+        hs.score,
+        hs.feedback,
+        hs.graded_details,
+        hs.is_submitted,
+        hs.submitted_at,
+        (h.deadline IS NOT NULL AND hs.submitted_at > h.deadline) AS is_late
+      FROM homework_submissions hs
+      JOIN homeworks h ON h.id = hs.homework_id
+      WHERE hs.homework_id = ? AND hs.student_id = ?
       `,
       [hwId, studentId]
     );
@@ -273,8 +276,10 @@ export const HomeworkModel = {
         hs.answer_text as answerText,
         hs.file_name as fileName,
         hs.file_path as filePath,
-        hs.files_json as filesJson
+        hs.files_json as filesJson,
+        (h.deadline IS NOT NULL AND hs.submitted_at > h.deadline) AS isLate
       FROM homework_submissions hs
+      JOIN homeworks h ON h.id = hs.homework_id
       LEFT JOIN students s ON s.student_id = hs.student_id
       WHERE hs.homework_id = ? AND hs.is_submitted = 1
       `,
@@ -287,7 +292,8 @@ export const HomeworkModel = {
   async getSubmissionDetail(submissionId) {
     const [rows] = await pool.execute(
       `SELECT hs.*, hs.student_id as studentId, s.name as studentName, hs.submitted_at as submittedAt, hs.answer_text as answerText,
-              h.title as homeworkTitle, h.course_id as courseCode
+              h.title as homeworkTitle, h.course_id as courseCode,
+              (h.deadline IS NOT NULL AND hs.submitted_at > h.deadline) AS isLate
        FROM homework_submissions hs
        JOIN homeworks h ON h.id = hs.homework_id
        LEFT JOIN students s ON s.student_id = hs.student_id

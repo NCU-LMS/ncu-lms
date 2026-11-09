@@ -9,13 +9,21 @@
           <span :class="homeworkData.isGraded ? 'text-green-600 font-bold' : homeworkData.isSubmitted ? 'text-blue-600 font-bold' : 'text-orange-500 font-bold'">
             {{ homeworkData.isGraded ? '已批改' : homeworkData.isSubmitted ? '已繳交' : '未繳交' }}
           </span>
+          <span v-if="homeworkData.isSubmitted && homeworkData.isLate" class="ml-1 text-red-600 font-bold">（遲交）</span>
         </span>
+        <span v-if="homeworkData.isSubmitted && homeworkData.submittedAtText">繳交時間：{{ homeworkData.submittedAtText }}</span>
       </div>
       <p
-        v-if="isPastDeadline && !homeworkData.isGraded && !homeworkData.isSubmitted"
+        v-if="submissionClosed && !homeworkData.isGraded && !homeworkData.isSubmitted"
         class="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2"
       >
         已超過繳交截止時間，無法再送出作業。
+      </p>
+      <p
+        v-else-if="isPastDeadline && homeworkData.allowLateSubmission && !homeworkData.isGraded && !homeworkData.isSubmitted"
+        class="mt-3 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded px-3 py-2"
+      >
+        已超過繳交截止時間，此作業開放補交，送出後會標示為遲交。
       </p>
 
       <div v-if="homeworkAttachments.length" class="mt-4 pt-4 border-t border-gray-200">
@@ -166,13 +174,13 @@
       </div>
 
       <div v-if="!homeworkData.isGraded" class="bg-gray-50 px-5 py-4 border-t flex flex-wrap justify-end items-center gap-3">
-        <span v-if="homeworkData.isSubmitted && isPastDeadline" class="text-xs text-red-600">
+        <span v-if="homeworkData.isSubmitted && submissionClosed" class="text-xs text-red-600">
           已超過繳交截止時間，無法收回作業
         </span>
         <button
           v-if="homeworkData.isSubmitted"
           type="button"
-          :disabled="isPastDeadline"
+          :disabled="submissionClosed"
           class="bg-red-500 text-white px-8 py-2.5 rounded text-[16px] hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           @click="unsubmitHomework"
         >
@@ -181,7 +189,7 @@
         <button
           v-else
           type="button"
-          :disabled="isPastDeadline"
+          :disabled="submissionClosed"
           class="bg-[#337ab7] text-white px-8 py-2.5 rounded text-[16px] hover:bg-[#285e8e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           @click="submitHomework"
         >
@@ -298,6 +306,9 @@ const homeworkData = ref({
   description: '',
   deadlineText: '-',
   deadlineRaw: null,
+  allowLateSubmission: false,
+  isLate: false,
+  submittedAtText: '',
   questions: [],
   isGraded: false,
   isSubmitted: false,
@@ -314,11 +325,14 @@ const isPastDeadline = computed(() => {
   return new Date() > new Date(d)
 })
 
+// 截止後只有老師開放補交時才能繼續繳交 / 收回
+const submissionClosed = computed(() => isPastDeadline.value && !homeworkData.value.allowLateSubmission)
+
 const answerInputsDisabled = computed(
   () =>
     homeworkData.value.isGraded ||
     homeworkData.value.isSubmitted ||
-    (isPastDeadline.value && !homeworkData.value.isSubmitted),
+    (submissionClosed.value && !homeworkData.value.isSubmitted),
 )
 
 const questionMaxScores = computed(() => perQuestionMaxScores(homeworkData.value.questions?.length || 0))
@@ -438,7 +452,10 @@ const loadData = async () => {
       ...hw,
       deadlineRaw: hw.deadline || null,
       deadlineText: hw.deadline ? new Date(hw.deadline).toLocaleString() : '-',
+      allowLateSubmission: Boolean(hw.allow_late_submission),
       isSubmitted: subIsSubmitted,
+      isLate: subIsSubmitted && Boolean(Number(mySub.is_late)),
+      submittedAtText: subIsSubmitted && mySub.submitted_at ? new Date(mySub.submitted_at).toLocaleString() : '',
       isGraded: Boolean(current?.score),
       score: current?.score || null,
       feedback: current?.feedback || '',
@@ -497,7 +514,7 @@ const handleFileChange = (index, event) => {
 }
 
 const submitHomework = async () => {
-  if (isPastDeadline.value) {
+  if (submissionClosed.value) {
     alert('已超過繳交截止時間，無法繳交作業')
     return
   }
@@ -549,7 +566,7 @@ const estimateMyScore = async () => {
 }
 
 const unsubmitHomework = async () => {
-  if (isPastDeadline.value) {
+  if (submissionClosed.value) {
     alert('已超過繳交截止時間，無法收回作業')
     return
   }

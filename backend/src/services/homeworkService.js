@@ -9,6 +9,16 @@ function deadlineIsInFuture(value) {
   return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
 }
 
+function toBool(value) {
+  return value === true || value === "true" || value === "1";
+}
+
+/** 已過截止且老師沒開放補交，才擋下繳交 / 收回 */
+function isClosedForSubmission(homework) {
+  if (!homework?.deadline || homework.allow_late_submission) return false;
+  return new Date() > new Date(homework.deadline);
+}
+
 function decodeUploadName(file) {
   return Buffer.from(file.originalname, "latin1").toString("utf8");
 }
@@ -36,7 +46,7 @@ function storedFilesFromSubmission(existing, questionCount) {
 export const HomeworkService = {
   // 老師發布作業
   async publishHomework(courseId, bodyData, files, actorUsername = null) {
-    const { title, deadline, description, questions, isGroupHomework } = bodyData;
+    const { title, deadline, description, questions, isGroupHomework, allowLateSubmission } = bodyData;
     let connection;
     try {
       connection = await pool.getConnection();
@@ -48,7 +58,8 @@ export const HomeworkService = {
         title,
         deadline,
         description,
-        isGroupHomework === true || isGroupHomework === "true" || isGroupHomework === "1",
+        toBool(isGroupHomework),
+        toBool(allowLateSubmission),
       );
 
       const mainFiles = (files || []).filter((f) => f.fieldname === "homework_files" || f.fieldname === "homework_file");
@@ -146,10 +157,8 @@ export const HomeworkService = {
   // 學生繳交作業
   async submitHomework(hwId, studentId, answerText, files = [], removeFileIndexes = []) {
     const homework = await HomeworkModel.getHomeworkById(hwId);
-    if (homework && homework.deadline) {
-      if (new Date() > new Date(homework.deadline)) {
-        throw new Error("已超過繳交截止時間，無法繳交作業");
-      }
+    if (isClosedForSubmission(homework)) {
+      throw new Error("已超過繳交截止時間，無法繳交作業");
     }
 
     const questions = await HomeworkModel.getQuestionsByHomework(hwId);
@@ -211,7 +220,7 @@ export const HomeworkService = {
 
   // 老師更新作業
   async updateHomework(hwId, bodyData, files, actorUsername = null) {
-    const { title, deadline, description, questions, isGroupHomework } = bodyData;
+    const { title, deadline, description, questions, isGroupHomework, allowLateSubmission } = bodyData;
     const existing = await HomeworkModel.getHomeworkById(hwId);
     if (!existing) throw new Error("找不到作業");
 
@@ -226,9 +235,9 @@ export const HomeworkService = {
         deadline: nextDeadline,
         description: description !== undefined ? description : existing.description,
         isGroupHomework:
-          isGroupHomework === undefined
-            ? Boolean(existing.is_group_homework)
-            : isGroupHomework === true || isGroupHomework === "true" || isGroupHomework === "1",
+          isGroupHomework === undefined ? Boolean(existing.is_group_homework) : toBool(isGroupHomework),
+        allowLateSubmission:
+          allowLateSubmission === undefined ? Boolean(existing.allow_late_submission) : toBool(allowLateSubmission),
         resetGradeNotice: deadlineIsInFuture(nextDeadline),
       });
 
@@ -297,10 +306,8 @@ export const HomeworkService = {
   // 學生收回作業：保留原本作答與檔案，僅標記為未繳交
   async unsubmitHomework(hwId, studentId) {
     const homework = await HomeworkModel.getHomeworkById(hwId);
-    if (homework && homework.deadline) {
-      if (new Date() > new Date(homework.deadline)) {
-        throw new Error("已超過繳交截止時間，無法收回作業");
-      }
+    if (isClosedForSubmission(homework)) {
+      throw new Error("已超過繳交截止時間，無法收回作業");
     }
 
     const sub = await HomeworkModel.getStudentSubmission(hwId, studentId);

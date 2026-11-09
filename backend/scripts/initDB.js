@@ -155,7 +155,8 @@ const initDB = async () => {
         title VARCHAR(255),
         description TEXT,
         deadline DATETIME,
-        grade_notified_at DATETIME NULL
+        grade_notified_at DATETIME NULL,
+        allow_late_submission TINYINT(1) NOT NULL DEFAULT 0
         )
     `);
 
