@@ -1,0 +1,302 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta charset="utf-8">
+<title>eeclass Database Schema</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --fg: #1d2330; --muted: #5d6677; --line: #d8dde6;
+  --accent: #2f6fdb; --accent-soft: #e4edfc; --entity: #eef2f8; --row-odd: #ffffff; --row-even: #f5f7fb; --edge: #6b7486;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12151b; --panel: #1a1e26; --fg: #e3e7ee; --muted: #9aa3b3; --line: #2c323d;
+  --accent: #7aa7f5; --accent-soft: #1f2c44; --entity: #222936; --row-odd: #1a1e26; --row-even: #1f242d; --edge: #8f98a8; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12151b; --panel: #1a1e26; --fg: #e3e7ee; --muted: #9aa3b3; --line: #2c323d;
+  --accent: #7aa7f5; --accent-soft: #1f2c44; --entity: #222936; --row-odd: #1a1e26; --row-even: #1f242d; --edge: #8f98a8; color-scheme: dark }
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; display: flex; flex-direction: column; }
+header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+h1 { font-size: 15px; font-weight: 600; margin: 0; white-space: nowrap; }
+h1 span { font-family: var(--mono); font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+.groups { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+.chip {
+  font: 500 12px var(--sans); color: var(--fg); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.zoom { display: flex; align-items: center; gap: 4px; }
+.zoom button {
+  font: 500 13px var(--sans); color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; min-width: 32px; height: 30px; padding: 0 8px; cursor: pointer;
+}
+.zoom button:hover { border-color: var(--accent); }
+#pct { font: 12px var(--mono); color: var(--muted); min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#stage { position: relative; flex: 1; overflow: hidden; cursor: grab; touch-action: none; min-height: 0; }
+#stage.dragging { cursor: grabbing; }
+#canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#canvas svg { display: block; max-width: none; }
+.legend {
+  position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+  font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; pointer-events: none;
+}
+.legend div { display: flex; align-items: center; gap: 8px; }
+.legend i { display: inline-block; width: 28px; border-top: 2px solid var(--edge); }
+.legend i.dash { border-top-style: dashed; }
+#status { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+</style>
+
+<header>
+  <h1>eeclass schema<span>initDB.js · 25 tables</span></h1>
+  <div class="groups" id="groups" role="group" aria-label="Show part of the schema"></div>
+  <div class="zoom">
+    <button id="zout" aria-label="Zoom out">−</button>
+    <span id="pct">100%</span>
+    <button id="zin" aria-label="Zoom in">+</button>
+    <button id="fit">Fit</button>
+    <button id="actual">1:1</button>
+  </div>
+</header>
+<div id="stage">
+  <div id="canvas"></div>
+  <div id="status">Drawing diagram…</div>
+  <div class="legend">
+    <div><i></i>Foreign key in the database</div>
+    <div><i class="dash"></i>Link enforced only in app code</div>
+    <div>Scroll or pinch to zoom · drag to pan</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+const T = {
+  accounts: [["int","id","PK"],["varchar","username","UK"],["varchar","password_hash"],["varchar","email"],["varchar","role","","student/teacher/ta/admin"],["tinyint","must_change_password"],["varchar","avatar_url"],["datetime","created_at"]],
+  password_reset_tokens: [["int","id","PK"],["int","account_id","FK"],["char","token_hash"],["datetime","expires_at"],["datetime","used_at"],["datetime","created_at"]],
+  students: [["int","id","PK"],["varchar","name"],["varchar","student_id","UK"]],
+  teachers: [["int","id","PK"],["varchar","name"],["varchar","teacher_id","UK"]],
+  admins: [["int","id","PK"],["varchar","name"],["varchar","admin_id","UK"],["datetime","created_at"]],
+  courses: [["int","id","PK"],["varchar","course_name"],["varchar","course_code","UK"],["text","description"],["varchar","academic_year"],["datetime","created_at"]],
+  teacher_courses: [["int","id","PK"],["int","teacher_id"],["int","course_id"]],
+  enrollments: [["int","id","PK"],["int","student_id"],["int","course_id"],["varchar","status","","active/withdrawn"],["datetime","withdrawn_at"]],
+  announcements: [["int","id","PK"],["int","course_id"],["int","teacher_id"],["varchar","title"],["text","content"],["bool","is_pinned"],["datetime","created_at"]],
+  announcement_reads: [["int","id","PK"],["int","student_id"],["int","announcement_id"]],
+  homeworks: [["int","id","PK"],["varchar","course_id","","varchar, not int"],["varchar","title"],["text","description"],["datetime","deadline"],["text","attachments_json"]],
+  homework_questions: [["int","id","PK"],["int","homework_id"],["int","question_order"],["varchar","title"],["text","description"],["varchar","answer_format"],["text","discussion_prompt"],["text","ai_prompt"],["bool","has_attachment"],["varchar","file_name"],["varchar","file_path"]],
+  homework_submissions: [["int","id","PK"],["int","homework_id"],["varchar","student_id","","account username"],["text","answer_text"],["varchar","file_name"],["varchar","file_path"],["varchar","score"],["text","feedback"],["text","graded_details"],["tinyint","is_submitted"],["datetime","submitted_at"],["datetime","graded_at"]],
+  homework_submission_histories: [["int","id","PK"],["int","submission_id","FK"],["varchar","event_type"],["longtext","payload_json"],["datetime","created_at"]],
+  discussion_rooms: [["int","id","PK"],["int","course_id","FK"],["varchar","room_name"],["varchar","title"],["text","content"],["text","ai_prompt"],["varchar","file_path"],["timestamp","created_at"]],
+  threads: [["int","id","PK"],["int","room_id","FK"],["int","parent_thread_id","FK"],["varchar","student_id","","username or AI"],["text","content"],["datetime","created_at"]],
+  ai_chat_messages: [["int","id","PK"],["int","course_id","FK"],["int","student_id","FK"],["enum","role","","user/assistant"],["text","message"],["datetime","created_at"]],
+  course_ai_prompts: [["int","id","PK"],["int","course_id","FK"],["text","chat_prompt"],["text","discussion_prompt"],["text","grading_prompt"],["bool","send_announcements"],["bool","send_assignments"],["bool","send_student_info"],["bool","send_grades"],["datetime","updated_at"]],
+  course_materials: [["int","id","PK"],["varchar","course_id","","varchar, not int"],["varchar","uploader_id","","account username"],["varchar","file_name"],["varchar","file_path"],["datetime","created_at"]],
+  AIQuizzes: [["varchar","id","PK"],["varchar","courseId"],["varchar","teacherId"],["varchar","title"],["varchar","sourceFile"],["datetime","deadline"],["datetime","createdAt"]],
+  AIQuestions: [["varchar","id","PK"],["varchar","quizId","FK"],["text","questionText"],["text","discussionPrompt"]],
+  StudentAnswers: [["varchar","id","PK"],["varchar","questionId","FK"],["varchar","studentId"],["varchar","studentName"],["text","answerText"],["text","aiFeedback"],["datetime","submitTime"]],
+  AIQuizComments: [["varchar","id","PK"],["varchar","answerId","FK"],["varchar","parentId","FK"],["varchar","userId"],["varchar","userName"],["varchar","role"],["text","content"],["datetime","createdAt"]],
+};
+
+const R = [
+  ["accounts","||--o{","password_reset_tokens","resets"],
+  ["accounts","|o..o|","students","username = student_id"],
+  ["accounts","|o..o|","teachers","username = teacher_id"],
+  ["teachers","||..o{","teacher_courses","teaches"],
+  ["courses","||..o{","teacher_courses",""],
+  ["students","||..o{","enrollments","enrolls"],
+  ["courses","||..o{","enrollments",""],
+  ["courses","||..o{","announcements","has"],
+  ["teachers","||..o{","announcements","posts"],
+  ["announcements","||..o{","announcement_reads","read by"],
+  ["students","||..o{","announcement_reads",""],
+  ["courses","||..o{","homeworks","course_id"],
+  ["homeworks","||..o{","homework_questions","has"],
+  ["homeworks","||..o{","homework_submissions","receives"],
+  ["accounts","||..o{","homework_submissions","student_id = username"],
+  ["homework_submissions","||--o{","homework_submission_histories","logs"],
+  ["courses","||--o{","discussion_rooms","has"],
+  ["discussion_rooms","||--o{","threads","contains"],
+  ["threads","||--o{","threads","replies"],
+  ["accounts","||..o{","threads","student_id"],
+  ["courses","||--o{","ai_chat_messages",""],
+  ["students","||--o{","ai_chat_messages","chats"],
+  ["courses","||--o|","course_ai_prompts","config"],
+  ["courses","||..o{","course_materials","has"],
+  ["accounts","||..o{","course_materials","uploader_id"],
+  ["courses","||..o{","AIQuizzes","courseId"],
+  ["AIQuizzes","||--o{","AIQuestions","has"],
+  ["AIQuestions","||--o{","StudentAnswers","answered"],
+  ["StudentAnswers","||--o{","AIQuizComments","comments"],
+  ["AIQuizComments","||--o{","AIQuizComments","replies"],
+];
+
+const GROUPS = [
+  ["All tables", Object.keys(T)],
+  ["Logins & people", ["accounts","password_reset_tokens","students","teachers","admins"]],
+  ["Courses & rosters", ["courses","teachers","students","teacher_courses","enrollments"]],
+  ["Announcements", ["courses","teachers","students","announcements","announcement_reads"]],
+  ["Homework", ["courses","accounts","homeworks","homework_questions","homework_submissions","homework_submission_histories"]],
+  ["Discussions & files", ["courses","accounts","discussion_rooms","threads","course_materials"]],
+  ["AI tutor", ["courses","students","ai_chat_messages","course_ai_prompts"]],
+  ["AI quizzes", ["courses","AIQuizzes","AIQuestions","StudentAnswers","AIQuizComments"]],
+];
+
+function source(tables) {
+  const set = new Set(tables);
+  const lines = ["erDiagram"];
+  for (const [a, c, b, l] of R) if (set.has(a) && set.has(b)) lines.push(`  ${a} ${c} ${b} : "${l}"`);
+  for (const t of tables) {
+    lines.push(`  ${t} {`);
+    for (const [type, name, key = "", note = ""] of T[t]) lines.push(`    ${type} ${name}${key ? " " + key : ""}${note ? ` "${note}"` : ""}`);
+    lines.push("  }");
+  }
+  return lines.join("\n");
+}
+
+const stage = document.getElementById("stage");
+const canvas = document.getElementById("canvas");
+const statusEl = document.getElementById("status");
+const pct = document.getElementById("pct");
+let view = { s: 1, x: 0, y: 0 }, size = { w: 1, h: 1 }, current = 0, renderId = 0;
+
+function apply() {
+  canvas.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.s})`;
+  pct.textContent = Math.round(view.s * 100) + "%";
+}
+function zoomAt(factor, cx, cy) {
+  const s = Math.min(8, Math.max(0.05, view.s * factor));
+  view.x = cx - (cx - view.x) * (s / view.s);
+  view.y = cy - (cy - view.y) * (s / view.s);
+  view.s = s; apply();
+}
+function centre() { const r = stage.getBoundingClientRect(); return [r.width / 2, r.height / 2]; }
+function fit() {
+  const r = stage.getBoundingClientRect();
+  view.s = Math.min(r.width / size.w, r.height / size.h) * 0.95;
+  view.x = (r.width - size.w * view.s) / 2;
+  view.y = (r.height - size.h * view.s) / 2;
+  apply();
+}
+function actual() {
+  const [cx, cy] = centre();
+  const px = (cx - view.x) / view.s, py = (cy - view.y) / view.s;
+  view.s = 1; view.x = cx - px; view.y = cy - py; apply();
+}
+
+function isDark() {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+async function draw() {
+  const id = ++renderId;
+  const css = getComputedStyle(document.documentElement);
+  const v = n => css.getPropertyValue(n).trim();
+  mermaid.initialize({
+    startOnLoad: false, theme: "base", securityLevel: "strict",
+    fontFamily: v("--sans"),
+    er: { useMaxWidth: false, fontSize: 14 },
+    themeVariables: {
+      darkMode: isDark(), fontFamily: v("--sans"), fontSize: "14px",
+      background: v("--bg"), primaryColor: v("--entity"), primaryBorderColor: v("--edge"),
+      primaryTextColor: v("--fg"), textColor: v("--fg"), lineColor: v("--edge"),
+      tertiaryColor: v("--panel"), attributeBackgroundColorOdd: v("--row-odd"), attributeBackgroundColorEven: v("--row-even"),
+    },
+  });
+  try {
+    const { svg } = await mermaid.render("erd" + id, source(GROUPS[current][1]));
+    if (id !== renderId) return;
+    canvas.innerHTML = svg;
+    const el = canvas.querySelector("svg");
+    const vb = el.viewBox.baseVal;
+    size = { w: vb.width, h: vb.height };
+    el.setAttribute("width", vb.width); el.setAttribute("height", vb.height);
+    el.style.maxWidth = "none";
+    statusEl.hidden = true;
+    fit();
+  } catch (e) {
+    statusEl.hidden = false;
+    statusEl.textContent = "Could not draw the diagram: " + (e && e.message || e);
+  }
+}
+
+const groupsEl = document.getElementById("groups");
+GROUPS.forEach(([name], i) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.id = "g" + i; b.textContent = name;
+  b.setAttribute("aria-pressed", i === current ? "true" : "false");
+  b.onclick = () => {
+    current = i;
+    groupsEl.querySelectorAll(".chip").forEach((c, j) => c.setAttribute("aria-pressed", j === i ? "true" : "false"));
+    draw();
+  };
+  groupsEl.appendChild(b);
+});
+
+document.getElementById("zin").onclick = () => zoomAt(1.25, ...centre());
+document.getElementById("zout").onclick = () => zoomAt(0.8, ...centre());
+document.getElementById("fit").onclick = fit;
+document.getElementById("actual").onclick = actual;
+window.addEventListener("keydown", e => {
+  if (e.target.closest("input, textarea")) return;
+  if (e.key === "+" || e.key === "=") zoomAt(1.25, ...centre());
+  else if (e.key === "-") zoomAt(0.8, ...centre());
+  else if (e.key === "0") fit();
+});
+
+stage.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = stage.getBoundingClientRect();
+  zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+
+const pointers = new Map();
+let pinch = null;
+stage.addEventListener("pointerdown", e => {
+  stage.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  stage.classList.add("dragging");
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinch = Math.hypot(a.x - b.x, a.y - b.y);
+  }
+});
+stage.addEventListener("pointermove", e => {
+  const prev = pointers.get(e.pointerId);
+  if (!prev) return;
+  const next = { x: e.clientX, y: e.clientY };
+  pointers.set(e.pointerId, next);
+  if (pointers.size === 1) {
+    view.x += next.x - prev.x; view.y += next.y - prev.y; apply();
+  } else if (pointers.size === 2 && pinch) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    const r = stage.getBoundingClientRect();
+    zoomAt(d / pinch, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+    pinch = d;
+  }
+});
+function release(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (!pointers.size) stage.classList.remove("dragging");
+}
+stage.addEventListener("pointerup", release);
+stage.addEventListener("pointercancel", release);
+
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(draw);
+</script>
+
+</body></html>
