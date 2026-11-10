@@ -378,9 +378,9 @@ flowchart LR
     A["Jira 領取任務<br/>Assignee 設成自己<br/>To Do → In Progress"] --> B["從 main 開分支<br/>feature/NL-123-xxx"]
     B --> C["開發 + 本機測試<br/>小步 commit"]
     C --> D["push + 開 Pull Request<br/>Jira → Code Review"]
-    D --> CI{"CI 自動測試 + Lint"}
+    D --> CI{"🟡 CI 自動測試 + Lint<br/>(尚未實作)"}
     CI -- 失敗 --> C
-    CI -- 通過 --> E{"Code Review<br/>2 人同意"}
+    CI -- 通過 --> E{"Code Review<br/>專案負責人 + 另 1 人同意"}
     E -- 要修改 --> C
     E -- 通過 --> F["Squash merge 進 main<br/>刪除分支"]
     F --> G["Jira → Done"]

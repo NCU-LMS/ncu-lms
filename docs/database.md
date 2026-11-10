@@ -232,16 +232,35 @@ erDiagram
 
 ## 6. 修改資料庫時的規範
 
-1. **不要**修改或 DROP 既有的 `CREATE TABLE`。新增欄位一律在 `backend/scripts/initDB.js` 尾端加一段：
+> 這一節和 [workflow.md 3.5 資料庫變更](workflow.md#35-資料庫變更) 的規則一致，修改其中一邊時要同步更新另一邊。
+
+1. 動工前先在 Jira Ticket 寫清楚要新增 / 修改哪些資料表與欄位。
+2. **不要**修改或 DROP 既有的 `CREATE TABLE` 和 `ALTER TABLE`。新增欄位一律在 `backend/scripts/initDB.js` 尾端加一段：
    ```js
    try {
        await pool.execute("ALTER TABLE <table> ADD COLUMN <column> <type>");
    } catch (e) { /* 欄位已存在就忽略 */ }
    ```
    確保腳本可在既有資料庫上重複執行。⚠️ 最近一批新增的表格/欄位（小組、通知、`is_group_homework`、`files_json`、`created_by`、`author_username` 等）**只寫進了 `ensureSchema.js`，沒有同步補進 `initDB.js`**，沒有照這條規範走，見第 7 節。
-2. 若欄位是「程式已在用但 schema 沒有」的（例如 `ai_estimated_*`），請優先補齊並更新本文件。
-3. 新增存「課程」或「使用者」的欄位前，先看 [第 2 節](#2-鍵值慣例最容易踩雷的地方)，與同模組既有欄位保持一致，不要再引入新的鍵值慣例。
-4. 新增表格 / 欄位後，同步更新本文件第 3、4 節。
+3. 欄位異動照 **「先擴充、再切換、後刪除」** 的順序進行，不要一步到位直接改掉舊欄位：
+   - **先擴充**：新增新欄位/新表，程式先同時讀寫新舊兩邊。
+   - **再切換**：確認新的欄位/表運作正常後，把讀取邏輯全部切到新欄位。
+   - **後刪除**：等到沒有任何版本的程式還依賴舊欄位（且已過可能回滾的觀察期），才真正刪除舊欄位。
+
+   這樣部署後要回滾到前一版時，舊版程式才不會因為找不到被改掉的欄位而壞掉（見 [workflow.md 4.4 部署](workflow.md#44-部署)的「可回滾性」）。
+4. 若欄位是「程式已在用但 schema 沒有」的（例如 `ai_estimated_*`），請優先補齊並更新本文件。
+5. 新增存「課程」或「使用者」的欄位，一律用 `courses.id`、`accounts.id`（數字），即使同模組既有欄位用的是 `course_code` / `username` 也一樣；為什麼會有兩套鍵值、哪些表還在用舊的，見 [第 2 節](#2-鍵值慣例最容易踩雷的地方)。
+6. 有關聯的欄位要加 `FOREIGN KEY`（目前多數表沒有，見第 7 節）。
+7. 新增表格 / 欄位後，同步更新本文件第 3、4 節。
+8. PR 加上 GitHub 標籤 **`db`**，PR 描述寫「需要執行 `node scripts/initDB.js`」。
+9. 合併之後，資料庫要在兩個地方更新：
+
+   | 哪裡 | 誰負責 | 什麼時候 |
+   | --- | --- | --- |
+   | **大家自己電腦的資料庫** | 每個人自己 | PR 合併後，提出者在 Discord 提醒「`main` 有資料庫變更」，大家下次 `git pull` 後執行 `node scripts/initDB.js` |
+   | **正式環境的資料庫** | 負責部署的人 | **下一次部署時**執行，見 [workflow.md 4.4 部署](workflow.md#44-部署) |
+
+> ⚠️ **現況落差**：目前是用「疊加 `ALTER TABLE` 到同一支腳本」管理 schema，**不是正式的 migration 工具**（沒有版本編號、沒有自動 rollback）。之後團隊人數或變更頻率變高時，應評估導入正式的 migration 工具（例如 Knex migrations）。
 
 ---
 
