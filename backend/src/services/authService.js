@@ -5,7 +5,7 @@ import { AuthModel } from "../models/authModel.js";
 import { signAccessToken } from "../utils/jwt.js";
 import { parseRosterExcel } from "../utils/rosterExcel.js";
 
-const DEFAULT_RECOVERY_CODE = "20260519";
+const DEFAULT_RECOVERY_CODE = "20260519"; 
 
 // accounts are only ever created by an admin; there is no self sign-up
 const ROLE_CREATION_MATRIX = {

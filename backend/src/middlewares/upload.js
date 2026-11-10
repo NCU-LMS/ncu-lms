@@ -99,7 +99,10 @@ export const uploadSpreadsheet = multer({
 export const uploadPdf = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === "application/pdf") {
+    if (
+      file.mimetype === "application/pdf"
+      && path.extname(file.originalname || "").toLowerCase() === ".pdf"
+    ) {
       cb(null, true);
     } else {
       cb(new Error("只允許上傳 PDF 檔案"), false);
@@ -107,3 +110,30 @@ export const uploadPdf = multer({
   },
   limits: { fileSize: 10 * 1024 * 1024 },
 });
+
+export async function verifyPdfContent(req, _res, next) {
+  if (!req.file) return next();
+  let fileHandle;
+  try {
+    fileHandle = await fs.promises.open(req.file.path, "r");
+    const signature = Buffer.alloc(5);
+    const { bytesRead } = await fileHandle.read(signature, 0, signature.length, 0);
+    await fileHandle.close();
+    fileHandle = null;
+    if (bytesRead !== signature.length || signature.toString("ascii") !== "%PDF-") {
+      await fs.promises.unlink(req.file.path);
+      return next(new Error("只允許上傳 PDF 檔案"));
+    }
+    return next();
+  } catch (error) {
+    if (fileHandle) await fileHandle.close();
+    try {
+      await fs.promises.unlink(req.file.path);
+    } catch (cleanupError) {
+      if (cleanupError.code !== "ENOENT") {
+        console.error("[uploadPdf] 清理無效 PDF 失敗", cleanupError);
+      }
+    }
+    return next(error);
+  }
+}
