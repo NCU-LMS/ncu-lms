@@ -118,12 +118,13 @@ const goToProfile = () => {
 const logout = () => {
   isMenuOpen.value = false
   localStorage.clear()
+  sessionStorage.clear()
   window.location.href = '/'
 }
 
 const loadUser = async() => {
-  const stored = localStorage.getItem("user")
-  const token = localStorage.getItem("accessToken")
+  const stored = localStorage.getItem("user") || sessionStorage.getItem("user")
+  const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken")
   const isAuthRoute =
     route.path === '/' ||
     route.path === '/forgot-password' ||

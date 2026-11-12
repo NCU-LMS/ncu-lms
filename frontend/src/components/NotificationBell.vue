@@ -13,7 +13,7 @@ const rootEl = ref(null)
 let timer = null
 
 const fetchNotifications = async () => {
-  if (!localStorage.getItem('accessToken')) return
+  if (!localStorage.getItem('accessToken') && !sessionStorage.getItem('accessToken')) return
   try {
     const res = await api.get('/api/notifications')
     notifications.value = res.data.notifications || []

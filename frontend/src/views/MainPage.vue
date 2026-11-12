@@ -3,12 +3,13 @@
     <header class="bg-white flex justify-between items-center px-6 py-3 border-b text-sm h-12">
       <router-link to ="/" class="font-bold text-base p-1 border-2 border-transparent focus:border-black rounded ">國立中央大學 「LMS 計畫」</router-link>
     </header>
-    <div class="flex justify-start items-start mt-10 ml-10 gap-8">
-<div class="w-full max-w-[300px] p-4 bg-white border border-gray-200 rounded-xl shadow-lg">
-        
+
+    <main class="flex flex-col md:flex-row justify-start items-start mt-10 mx-4 md:mx-10 gap-8">
+      <!-- 左側：登入-->
+      <section class="w-full md:max-w-[300px] p-4 bg-white border border-gray-200 rounded-xl shadow-lg">
         <!-- 已登入 (isLoggedIn 為 true) -->
         <template v-if="isLoggedIn">
-          <h2 class="text-2xl font-bold text-gray-800 mb-6">歡迎, {{ user.name || '使用者' }}</h2>
+          <h2 class="text-2xl font-bold text-gray-800 mb-6">歡迎, {{ user.name }}</h2>
           <hr class="my-6 border-t-4 border-blue-500" />
           <div class="flex flex-col gap-4 py-4">
             <button
@@ -92,55 +93,78 @@
             </div>
           </div>
         </template>
-      </div>
-      <div class="w-full max-w-[840px] p-4 bg-white border border-gray-200 rounded-xl shadow-lg">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">最新公告</h2>
-        <hr class="my-6 border-t-4 border-blue-500" />
-        <a> - 等待更新 - </a>
-      </div>
-    </div>
+        <div class="mt-2 text-center flex justify-center gap-2 text-[15px]">
+          <a href="https://forms.gle/LQK7NGDGU8oqF5Q8A" target="_blank" class="text-[#337ab7] hover:text-[#285e8e]">
+            提供建議/bug反饋
+          </a>
+        </div>
+      </section>
+      <SiteAnnouncements :is-admin = "user.role === 'admin'" />
+    </main>
   </div>
 </template>
 
 
 <script setup>
 import { ref, onMounted } from "vue"
+import { useRouter } from "vue-router"
 import api from "@/api/client.js"
 import { setAccessToken, setMustChangePassword } from "@/utils/auth.js"
+import SiteAnnouncements from "../components/SiteAnnouncement.vue"
 
+const router = useRouter()
+
+// 登入介面狀態
 const email = ref("")
 const password = ref("")
 const showPassword = ref(false)
 const rememberMe = ref(false)
-const isLoggedIn = ref(false)
 
+
+// 使用者當前狀態
+const isLoggedIn = ref(false)
 const user = ref({
   name: '',
   user_id: '',
   role: '',
 })
 
+const TOKEN_KEYS = ["accessToken"]
+ 
+const hasToken = () => TOKEN_KEYS.some((k) => localStorage.getItem(k) || sessionStorage.getItem(k))
 
+// 清除登入相關資料
+const clearAuth = () => {
+  TOKEN_KEYS.forEach((k) => {
+    localStorage.removeItem(k)
+    sessionStorage.removeItem(k)
+  })
+  localStorage.removeItem("user")
+  sessionStorage.removeItem("user")
+}
+
+// 載入使用者
 const loadUser = async () => {
-  const stored = localStorage.getItem("user")
-  // 未登入時留在首頁，由首頁的登入表單處理
-  if (!stored) return
-
-  user.value.user_id = stored
+  if (!hasToken()) {
+    isLoggedIn.value = false
+    return
+  }
+ 
+  isLoggedIn.value = true
+  user.value.user_id = localStorage.getItem("user") || sessionStorage.getItem("user")
 
   try {
     const res = await api.get('/api/auth/me')
     user.value.role = res.data.role
+    user.value.name = (res.data.user)?.name || '使用者'
   } catch (err) {
     console.error('取得使用者資訊失敗', err)
+    // token 失效回到未登入
+    if (err.response?.status === 401) {
+      clearAuth()
+      isLoggedIn.value = false
+    }
   }
-}
-
-// 檢查Token是否存在
-const checkLoginStatus = () => {
-  // 檢查 localStorage (保持登入) 或 sessionStorage (一般登入)
-  const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken") || localStorage.getItem("token")
-  isLoggedIn.value = !!token
 }
 
 const login = async () => {
@@ -152,15 +176,18 @@ const login = async () => {
 
     alert(data.message)
 
-    setAccessToken(data.token)
-    localStorage.setItem("user", data.username)
+    setAccessToken(data.token, rememberMe.value)
+    const store = rememberMe.value ? localStorage : sessionStorage
+    store.setItem("user", data.username)
     setMustChangePassword(Boolean(data.mustChangePassword))
-
+    loadUser()
+    /*
     if (data.mustChangePassword) {
-      window.location.href = '/change-password'
+      router.push('/change-password')
     } else {
-      window.location.href = data.role === 'admin' ? '/admin/accounts' : '/dashboard'
+      router.push(data.role === 'admin' ? '/admin/accounts' : '/dashboard')
     }
+      */
   } catch (error) {
     const msg = error.response?.data?.message || "連線失敗"
     alert(msg)
@@ -170,19 +197,20 @@ const login = async () => {
 
 // 進入課程按鈕
 const enterCourse = () => {
-  window.location.href = '/dashboard'
+  router.push(user.value.role === 'admin' ? '/admin/accounts' : '/dashboard')
 }
 
+// logout清除登入資訊
 const logout = () => {
-  localStorage.clear()
-  window.location.href = '/'
+  clearAuth()
+  user.value = { name: "", user_id: "", role: "" }
   isLoggedIn.value = false
   email.value = ""
   password.value = ""
+  router.push("/")
 }
 
 onMounted(() => {
   loadUser()
-  checkLoginStatus()
 })
 </script>

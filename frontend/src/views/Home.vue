@@ -24,8 +24,8 @@ const courseForm = ref({
 })
 
 const loadUser = async () => {
-  const stored = localStorage.getItem('user')
-  const token = localStorage.getItem('accessToken')
+  const stored = localStorage.getItem('user') || sessionStorage.getItem('user')
+  const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
   if (!stored || !token) {
     router.push('/')
     return
