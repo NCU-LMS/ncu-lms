@@ -5,7 +5,7 @@ import { DiscussionController } from "../controllers/discussionController.js";
 import { HomeworkController } from "../controllers/homeworkController.js";
 import { MaterialController } from "../controllers/materialController.js";
 import { StudentListController } from "../controllers/StudentListController.js";
-import { uploadPdf, upload, uploadSpreadsheet } from "../middlewares/upload.js";
+import { uploadPdf, upload, uploadSpreadsheet, uploadAnnouncement } from "../middlewares/upload.js";
 import { requireRole } from "../middlewares/requireRole.js";
 import { courseRole } from "../middlewares/courseRole.js";
 import courseAiRoutes from "./courseAiRoutes.js";
@@ -32,8 +32,8 @@ router.post("/", requireRole("admin", "teacher"), CourseController.createCourse)
 
 router.get("/:courseCode/contacts", CourseController.getContacts);
 router.get("/:courseCode/announcements", AnnouncementController.getAnnouncements);
-router.post("/:courseCode/announcements", staff, AnnouncementController.create);
-router.put("/:courseCode/announcements/:announcementId", staff, AnnouncementController.update);
+router.post("/:courseCode/announcements", staff, uploadAnnouncement.array("files", 10), AnnouncementController.create);
+router.put("/:courseCode/announcements/:announcementId", staff, uploadAnnouncement.array("files", 10), AnnouncementController.update);
 router.delete("/:courseCode/announcements/:announcementId", staff, AnnouncementController.remove);
 
 router.get("/:courseCode/discussions", DiscussionController.getCourseDiscussions);

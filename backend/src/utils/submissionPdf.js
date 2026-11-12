@@ -85,36 +85,63 @@ async function appendAttachment(target, file) {
   }
 }
 
-/**
- * 產生單一學生的合併 PDF：每題的題目、文字作答，緊接著該題上傳的附件內容。
- * student: { name, studentId, submittedAt, answers: string[], files: [{ index, name, abs }] }
- */
-export async function buildStudentPdf(homework, questions, student) {
-  const target = await PdfLibDocument.create();
+function drawStudentAnswers(doc, questions, student) {
+  doc.fontSize(13).fillColor("#1f2937").text(`學生：${student.name || "未命名"}（${student.studentId}）`);
+  if (student.submittedAt) {
+    doc.fontSize(10).fillColor("#4b5563").text(`繳交時間：${new Date(student.submittedAt).toLocaleString("zh-TW")}`);
+  }
+  doc.moveDown(0.35);
   const count = Math.max(questions.length, student.answers.length, 1);
-
   for (let i = 0; i < count; i += 1) {
     const q = questions[i];
     const text = String(student.answers[i] ?? "").trim();
     const attachments = student.files.filter((file) => file.index === i);
-    const bytes = await renderTextPdf((doc) => {
-      if (i === 0) {
-        doc.fontSize(18).fillColor("#1f2937").text(homework.title || "作業");
-        doc.moveDown(0.3).fontSize(12).fillColor("#374151")
-          .text(`學生：${student.name || "未命名"}（${student.studentId}）`);
-        if (student.submittedAt) doc.text(`繳交時間：${new Date(student.submittedAt).toLocaleString("zh-TW")}`);
-        doc.moveDown();
+    doc.fontSize(13).fillColor("#1d4ed8").text(`第 ${i + 1} 題：${q?.title || "（無標題）"}`);
+    if (q?.description) doc.moveDown(0.2).fontSize(10).fillColor("#6b7280").text(q.description);
+    doc.moveDown(0.3).fontSize(11).fillColor("#111827").text(text || "（無文字作答）");
+    if (attachments.length) {
+      doc.moveDown(0.25).fontSize(9).fillColor("#047857")
+        .text(`附件：${attachments.map((file) => file.name).join("、")}`);
+    }
+    if (i < count - 1) doc.moveDown(0.45);
+  }
+}
+
+/**
+ * 產生單一學生的合併 PDF：題目與文字作答連續排版，附件接在文字之後。
+ * student: { name, studentId, submittedAt, answers: string[], files: [{ index, name, abs }] }
+ */
+export async function buildStudentPdf(homework, questions, student) {
+  const target = await PdfLibDocument.create();
+  const bytes = await renderTextPdf((doc) => {
+    doc.fontSize(18).fillColor("#1f2937").text(homework.title || "作業");
+    doc.moveDown(0.35);
+    drawStudentAnswers(doc, questions, student);
+  });
+  await appendPdfBytes(target, bytes);
+  for (const file of student.files) await appendAttachment(target, file);
+  return Buffer.from(await target.save());
+}
+
+/** 全班合併：學生文字作答連續接排，不因換學生而強制換頁。附件集中接在文字之後。 */
+export async function buildClassMergedPdf(homework, questions, students) {
+  const target = await PdfLibDocument.create();
+  const textBytes = await renderTextPdf((doc) => {
+    doc.fontSize(18).fillColor("#1f2937").text(homework.title || "作業");
+    doc.moveDown(0.2).fontSize(11).fillColor("#4b5563").text(`全班合併作答（共 ${students.length} 份）`);
+    doc.moveDown(0.5);
+    students.forEach((student, index) => {
+      if (index > 0) {
+        doc.moveDown(0.45);
+        doc.fontSize(9).fillColor("#9ca3af").text("─".repeat(36));
+        doc.moveDown(0.35);
       }
-      doc.fontSize(14).fillColor("#1d4ed8").text(`第 ${i + 1} 題：${q?.title || "（無標題）"}`);
-      if (q?.description) doc.moveDown(0.3).fontSize(10).fillColor("#6b7280").text(q.description);
-      doc.moveDown(0.5).fontSize(12).fillColor("#111827").text(text || "（無文字作答）");
-      if (attachments.length) {
-        doc.moveDown(0.5).fontSize(10).fillColor("#047857")
-          .text(`附件：${attachments.map((file) => file.name).join("、")}（內容接在本頁之後）`);
-      }
+      drawStudentAnswers(doc, questions, student);
     });
-    await appendPdfBytes(target, bytes);
-    for (const file of attachments) await appendAttachment(target, file);
+  });
+  await appendPdfBytes(target, textBytes);
+  for (const student of students) {
+    for (const file of student.files) await appendAttachment(target, file);
   }
   return Buffer.from(await target.save());
 }

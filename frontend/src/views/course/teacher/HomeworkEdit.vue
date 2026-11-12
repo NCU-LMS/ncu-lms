@@ -46,6 +46,14 @@
             </span>
           </label>
 
+          <label class="flex items-start gap-2 text-sm text-gray-700">
+            <input v-model="form.allowLateSubmission" type="checkbox" class="mt-0.5" />
+            <span>
+              允許補交
+              <span class="block text-xs text-gray-500">截止後學生仍可繳交，繳交紀錄會標示「遲交」與實際繳交時間。</span>
+            </span>
+          </label>
+
           <div>
             <label class="block text-[15px] font-bold text-gray-700 mb-1.5">
               統一附件 <span class="text-gray-500 font-normal text-sm">（新檔會加在原附件後面，不會覆蓋）</span>
@@ -145,7 +153,15 @@
         </div>
       </div>
 
-      <div class="flex justify-end gap-3 mt-2">
+      <div class="flex items-center justify-between gap-3 mt-2 flex-wrap">
+        <label class="flex items-start gap-2 text-sm text-gray-700">
+          <input v-model="notifyStudents" type="checkbox" class="mt-0.5" />
+          <span>
+            發布通知給學生
+            <span class="block text-xs text-gray-500">預設會通知。取消勾選則只儲存變更，不發送通知。</span>
+          </span>
+        </label>
+        <div class="flex gap-3">
         <button type="button" @click="goBack" class="px-6 py-2.5 rounded font-bold text-gray-600 border hover:bg-gray-100">取消</button>
         <button
           type="button"
@@ -154,6 +170,7 @@
         >
           儲存變更
         </button>
+        </div>
       </div>
     </template>
   </div>
@@ -172,12 +189,14 @@ const hwId = route.params.hwId
 const loading = ref(true)
 const homeworkFiles = ref([])
 const existingAttachments = ref([])
+const notifyStudents = ref(true)
 
 const form = ref({
   title: '',
   deadline: '',
   description: '',
   isGroupHomework: false,
+  allowLateSubmission: false,
   questions: [
     { title: '', description: '', answerFormat: 'file', gradingPrompt: '', discussionPrompt: '' },
   ],
@@ -218,6 +237,7 @@ const loadHomework = async () => {
       deadline: deadlineToInputValue(data.deadline),
       description: data.description || '',
       isGroupHomework: Boolean(data.is_group_homework),
+      allowLateSubmission: Boolean(data.allow_late_submission),
       questions: qs,
     }
     existingAttachments.value = Array.isArray(data.attachments) ? [...data.attachments] : []
@@ -270,6 +290,8 @@ const saveHomework = async () => {
   formData.append('deadline', formattedDeadline)
   formData.append('description', form.value.description || '')
   formData.append('isGroupHomework', String(form.value.isGroupHomework))
+  formData.append('allowLateSubmission', String(form.value.allowLateSubmission))
+  formData.append('notify', notifyStudents.value ? 'true' : 'false')
 
   const questionsData = form.value.questions.map((q) => ({
     id: q.id || null,

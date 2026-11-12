@@ -6,6 +6,9 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // 必須是絕對路徑：用 './' 的話，在 /course/xxx 這類深層網址重整時，
+  // ./assets/*.js 會被解析成 /course/xxx/assets/*.js，nginx fallback 回 index.html，頁面變全白
+  base: '/',
   plugins: [
     vue(),
     vueDevTools(),

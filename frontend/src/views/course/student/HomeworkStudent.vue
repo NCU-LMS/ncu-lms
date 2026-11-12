@@ -9,13 +9,21 @@
           <span :class="homeworkData.isGraded ? 'text-green-600 font-bold' : homeworkData.isSubmitted ? 'text-blue-600 font-bold' : 'text-orange-500 font-bold'">
             {{ homeworkData.isGraded ? '已批改' : homeworkData.isSubmitted ? '已繳交' : '未繳交' }}
           </span>
+          <span v-if="homeworkData.isSubmitted && homeworkData.isLate" class="ml-1 text-red-600 font-bold">（遲交）</span>
         </span>
+        <span v-if="homeworkData.isSubmitted && homeworkData.submittedAtText">繳交時間：{{ homeworkData.submittedAtText }}</span>
       </div>
       <p
-        v-if="isPastDeadline && !homeworkData.isGraded && !homeworkData.isSubmitted"
+        v-if="submissionClosed && !homeworkData.isGraded && !homeworkData.isSubmitted"
         class="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2"
       >
         已超過繳交截止時間，無法再送出作業。
+      </p>
+      <p
+        v-else-if="isPastDeadline && homeworkData.allowLateSubmission && !homeworkData.isGraded && !homeworkData.isSubmitted"
+        class="mt-3 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded px-3 py-2"
+      >
+        已超過繳交截止時間，此作業開放補交，送出後會標示為遲交。
       </p>
 
       <div v-if="homeworkAttachments.length" class="mt-4 pt-4 border-t border-gray-200">
@@ -24,11 +32,11 @@
           <li v-for="(att, i) in homeworkAttachments" :key="i">
             <button
               type="button"
-              class="text-sm text-blue-600 hover:underline font-medium disabled:opacity-60"
+              class="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline font-medium disabled:opacity-60"
               :disabled="downloadingIndex === i"
               @click="onDownloadAttachment(att, i)"
             >
-              📎 {{ attachmentName(att) }}{{ downloadingIndex === i ? '（下載中...）' : '' }}
+              <AttachmentIcon /> {{ attachmentName(att) }}{{ downloadingIndex === i ? '（下載中...）' : '' }}
             </button>
           </li>
         </ul>
@@ -74,7 +82,7 @@
     </div>
 
     <div v-if="homeworkData.isSubmitted && !homeworkData.isGraded" class="bg-indigo-50 border border-indigo-200 rounded p-5 shadow-sm">
-      <h3 class="text-lg font-bold text-indigo-800 mb-3 border-b border-indigo-200 pb-2">AI 預估評分</h3>
+      <h3 class="text-lg font-bold text-indigo-800 mb-3 border-b border-indigo-200 pb-2">AI參考評價</h3>
       <div class="mb-3">
         <button
           type="button"
@@ -82,13 +90,13 @@
           :disabled="estimating"
           @click="estimateMyScore"
         >
-          {{ estimating ? '預估中...' : '產生我的預估評分' }}
+          {{ estimating ? '評價中...' : '產生 AI參考評價' }}
         </button>
       </div>
       <div v-if="homeworkData.aiEstimatedScore !== null && homeworkData.aiEstimatedScore !== undefined">
       <div class="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <p class="text-xs text-indigo-700">最後一次 AI 預估分數（僅供參考，不代表最終成績）</p>
+          <p class="text-xs text-indigo-700">最後一次 AI參考評價（僅供參考，不代表最終成績）</p>
           <p class="text-3xl font-black text-indigo-600 mt-1">{{ homeworkData.aiEstimatedScore }}</p>
         </div>
         <p class="text-xs text-indigo-700">{{ homeworkData.aiEstimatedAt ? `更新時間：${homeworkData.aiEstimatedAt}` : '' }}</p>
@@ -97,7 +105,7 @@
         {{ homeworkData.aiEstimatedReason }}
       </p>
       </div>
-      <p v-else class="text-sm text-indigo-700">尚未產生預估評分，請先點擊上方按鈕。</p>
+      <p v-else class="text-sm text-indigo-700">尚未產生 AI參考評價，請先點擊上方按鈕。</p>
     </div>
 
     <div  class="bg-white border rounded shadow-sm overflow-hidden">
@@ -112,11 +120,11 @@
           <div v-if="legacyQuestionAttachment(q)" class="mb-4">
             <button
               type="button"
-              class="text-sm text-blue-600 hover:underline flex items-center gap-1 disabled:opacity-60"
+              class="text-sm text-blue-600 hover:underline inline-flex items-center gap-1 disabled:opacity-60"
               :disabled="legacyDownloadingId === q.id"
               @click="onDownloadLegacyQuestion(q)"
             >
-              📎 下載題目附件（舊版）：{{ q.fileName || q.file_name }}{{ legacyDownloadingId === q.id ? '（下載中...）' : '' }}
+              <AttachmentIcon /> 下載題目附件（舊版）：{{ q.fileName || q.file_name }}{{ legacyDownloadingId === q.id ? '（下載中...）' : '' }}
             </button>
           </div>
 
@@ -166,13 +174,13 @@
       </div>
 
       <div v-if="!homeworkData.isGraded" class="bg-gray-50 px-5 py-4 border-t flex flex-wrap justify-end items-center gap-3">
-        <span v-if="homeworkData.isSubmitted && isPastDeadline" class="text-xs text-red-600">
+        <span v-if="homeworkData.isSubmitted && submissionClosed" class="text-xs text-red-600">
           已超過繳交截止時間，無法收回作業
         </span>
         <button
           v-if="homeworkData.isSubmitted"
           type="button"
-          :disabled="isPastDeadline"
+          :disabled="submissionClosed"
           class="bg-red-500 text-white px-8 py-2.5 rounded text-[16px] hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           @click="unsubmitHomework"
         >
@@ -181,7 +189,7 @@
         <button
           v-else
           type="button"
-          :disabled="isPastDeadline"
+          :disabled="submissionClosed"
           class="bg-[#337ab7] text-white px-8 py-2.5 rounded text-[16px] hover:bg-[#285e8e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           @click="submitHomework"
         >
@@ -256,6 +264,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/api/client.js'
 import { downloadFile } from '@/utils/files.js'
+import AttachmentIcon from '@/components/AttachmentIcon.vue'
 
 const route = useRoute()
 const hwId = route.params.hwId
@@ -297,6 +306,9 @@ const homeworkData = ref({
   description: '',
   deadlineText: '-',
   deadlineRaw: null,
+  allowLateSubmission: false,
+  isLate: false,
+  submittedAtText: '',
   questions: [],
   isGraded: false,
   isSubmitted: false,
@@ -313,11 +325,14 @@ const isPastDeadline = computed(() => {
   return new Date() > new Date(d)
 })
 
+// 截止後只有老師開放補交時才能繼續繳交 / 收回
+const submissionClosed = computed(() => isPastDeadline.value && !homeworkData.value.allowLateSubmission)
+
 const answerInputsDisabled = computed(
   () =>
     homeworkData.value.isGraded ||
     homeworkData.value.isSubmitted ||
-    (isPastDeadline.value && !homeworkData.value.isSubmitted),
+    (submissionClosed.value && !homeworkData.value.isSubmitted),
 )
 
 const questionMaxScores = computed(() => perQuestionMaxScores(homeworkData.value.questions?.length || 0))
@@ -437,7 +452,10 @@ const loadData = async () => {
       ...hw,
       deadlineRaw: hw.deadline || null,
       deadlineText: hw.deadline ? new Date(hw.deadline).toLocaleString() : '-',
+      allowLateSubmission: Boolean(hw.allow_late_submission),
       isSubmitted: subIsSubmitted,
+      isLate: subIsSubmitted && Boolean(Number(mySub.is_late)),
+      submittedAtText: subIsSubmitted && mySub.submitted_at ? new Date(mySub.submitted_at).toLocaleString() : '',
       isGraded: Boolean(current?.score),
       score: current?.score || null,
       feedback: current?.feedback || '',
@@ -496,7 +514,7 @@ const handleFileChange = (index, event) => {
 }
 
 const submitHomework = async () => {
-  if (isPastDeadline.value) {
+  if (submissionClosed.value) {
     alert('已超過繳交截止時間，無法繳交作業')
     return
   }
@@ -531,7 +549,7 @@ const submitHomework = async () => {
 
 const estimateMyScore = async () => {
   if (!homeworkData.value.isSubmitted) {
-    alert('請先送出作業後再進行預估評分')
+    alert('請先送出作業後再產生 AI參考評價')
     return
   }
   estimating.value = true
@@ -548,7 +566,7 @@ const estimateMyScore = async () => {
 }
 
 const unsubmitHomework = async () => {
-  if (isPastDeadline.value) {
+  if (submissionClosed.value) {
     alert('已超過繳交截止時間，無法收回作業')
     return
   }

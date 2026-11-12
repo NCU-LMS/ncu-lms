@@ -3,9 +3,8 @@ import crypto from "node:crypto";
 import { pool } from "../config/db.js";
 import { AuthModel } from "../models/authModel.js";
 import { signAccessToken } from "../utils/jwt.js";
+import { sendPasswordResetEmail } from "../utils/mailer.js";
 import { parseRosterExcel } from "../utils/rosterExcel.js";
-
-const DEFAULT_RECOVERY_CODE = "20260519";
 
 // accounts are only ever created by an admin; there is no self sign-up
 const ROLE_CREATION_MATRIX = {
@@ -73,8 +72,8 @@ function hashPasswordResetToken(token) {
   return crypto.createHash("sha256").update(String(token), "utf8").digest("hex");
 }
 
-function getRecoveryCode() {
-  return String(process.env.PASSWORD_RECOVERY_CODE || DEFAULT_RECOVERY_CODE).trim();
+function generateResetCode() {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
 function mapDbError(e, context) {
@@ -235,23 +234,47 @@ export const AuthService = {
     return { message: "信箱已更新", email };
   },
 
-  /** 忘記密碼：帳號 + 教師提供之重設代碼 */
-  async resetPasswordWithRecoveryCode({ username, recoveryCode, password, confirmPassword }) {
-    const u = String(username ?? "").trim();
-    if (!u) throw new Error("請輸入帳號");
+  /** 忘記密碼：寄出信箱驗證碼 */
+  async requestPasswordReset({ email }) {
+    const normalized = normalizeEmail(email, { required: true });
+    const account = await AuthModel.findAccountByEmail(normalized);
+    if (!account) throw new Error("找不到此信箱對應的帳號");
 
-    const code = String(recoveryCode ?? "").trim();
-    if (code !== getRecoveryCode()) {
-      throw new Error("重設密碼代碼不正確");
+    const code = generateResetCode();
+    await AuthModel.deletePasswordResetTokensForAccount(account.id);
+    await AuthModel.insertPasswordResetToken(account.id, hashPasswordResetToken(code));
+
+    const sent = await sendPasswordResetEmail({
+      to: account.email,
+      code,
+      username: account.username,
+    });
+    if (!sent) {
+      throw new Error("系統尚未設定寄信功能，請聯絡管理員");
     }
+
+    return { message: "驗證碼已寄出，請至信箱查收，並於 15 分鐘內在本頁完成重設" };
+  },
+
+  async resetPasswordWithCode({ email, code, password, confirmPassword }) {
+    const normalized = normalizeEmail(email, { required: true });
+    const rawCode = String(code ?? "").trim();
+    if (!/^\d{6}$/.test(rawCode)) throw new Error("請輸入 6 位數驗證碼");
 
     validateNewPassword(password, confirmPassword);
 
-    const account = await AuthModel.findAccountByUsername(u);
-    if (!account) throw new Error("找不到此帳號");
+    const account = await AuthModel.findAccountByEmail(normalized);
+    if (!account) throw new Error("找不到此信箱對應的帳號");
+
+    const row = await AuthModel.findActivePasswordResetByTokenHash(hashPasswordResetToken(rawCode));
+    if (!row || Number(row.account_id) !== Number(account.id)) {
+      throw new Error("驗證碼不正確或已過期，請重新申請");
+    }
 
     const passwordHash = await bcrypt.hash(password, 10);
     await AuthModel.updateAccountPasswordById(account.id, passwordHash);
+    await AuthModel.markPasswordResetTokenUsed(row.id);
+    await AuthModel.deletePasswordResetTokensForAccount(account.id);
     await AuthModel.setMustChangePassword(account.id, false);
 
     return { message: "密碼已重設，請使用新密碼登入" };

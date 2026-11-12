@@ -3,7 +3,53 @@ import { AnnouncementModel } from "../models/announcementModel.js";
 import { CourseModel } from "../models/courseModel.js";
 import { AuthModel } from "../models/authModel.js";
 import { NotificationModel } from "../models/notificationModel.js";
-import { NotificationService, previewText } from "../services/notificationService.js";
+import { NotificationService, previewText, wantsNotification } from "../services/notificationService.js";
+
+function parseAttachments(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed.filter((item) => item && item.file_path) : [];
+  } catch {
+    return [];
+  }
+}
+
+function filesToAttachments(files) {
+  return (files || []).map((file) => ({
+    file_name: Buffer.from(file.originalname || "附件", "latin1").toString("utf8"),
+    file_path: `/uploads/${file.filename}`,
+  }));
+}
+
+function parseKeepList(raw) {
+  if (raw == null || raw === "") return null;
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed.map((item) => String(item)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function mergeAttachments(existingRaw, keepRaw, files) {
+  const previous = parseAttachments(existingRaw);
+  const keepPaths = parseKeepList(keepRaw);
+  const kept = keepPaths
+    ? previous.filter((item) => keepPaths.includes(String(item.file_path)))
+    : previous;
+  return [...kept, ...filesToAttachments(files)];
+}
+
+function asBool(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const text = String(value).trim().toLowerCase();
+  if (["true", "1", "on", "yes"].includes(text)) return true;
+  if (["false", "0", "off", "no"].includes(text)) return false;
+  return fallback;
+}
 
 export const AnnouncementService = {
   async getAnnouncements(courseCode, studentIdentifier) {
@@ -23,8 +69,10 @@ export const AnnouncementService = {
       rows = await AnnouncementModel.getForCourse(course.id);
     }
 
-    // 轉換資料格式，加上 isNew 屬性
-    const announcements = rows.map((item) => ({ ...item, isNew: !item.is_read }));
+    const announcements = rows.map((item) => {
+      const { attachments_json, ...rest } = item;
+      return { ...rest, attachments: parseAttachments(attachments_json), isNew: !item.is_read };
+    });
 
     return { 
       course_code: courseCode, 
@@ -42,7 +90,7 @@ export const AnnouncementService = {
     await NotificationModel.markAsReadByRef(student.id, "announcement", announcementId);
   },
 
-  async createAnnouncement(courseCode, teacherIdentifier, title, content, isPinned) {
+  async createAnnouncement(courseCode, teacherIdentifier, { title, content, isPinned, notify, files }) {
     const connection = await pool.getConnection();
     await connection.beginTransaction();
     let emailPayload = null;
@@ -67,27 +115,31 @@ export const AnnouncementService = {
         }
       }
 
+      const attachments = filesToAttachments(files);
       const [result] = await AnnouncementModel.create(
         course.id,
         finalTeacherId,
         title,
         content,
-        isPinned,
+        asBool(isPinned, false),
         teacherIdentifier,
+        JSON.stringify(attachments),
         connection,
       );
 
-      // 站內通知寫入同一筆交易；信箱在提交成功後才寄
-      emailPayload = await NotificationService.notifyByCourseCode({
-        courseCode,
-        type: "announcement",
-        refId: result.insertId,
-        headline: `新公告：${title}`,
-        message: previewText(content, 100),
-        excludeUsername: teacher ? null : teacherIdentifier,
-        linkPath: `/course/${course.course_code}?announcement=${result.insertId}`,
-        conn: connection,
-      });
+      // 站內通知寫入同一筆交易；信箱在提交成功後才寄。預設要通知。
+      if (wantsNotification(notify)) {
+        emailPayload = await NotificationService.notifyByCourseCode({
+          courseCode,
+          type: "announcement",
+          refId: result.insertId,
+          headline: `新公告：${title}`,
+          message: previewText(content, 100),
+          excludeUsername: teacher ? null : teacherIdentifier,
+          linkPath: `/course/${course.course_code}?announcement=${result.insertId}`,
+          conn: connection,
+        });
+      }
 
       await connection.commit();
     } catch (error) {
@@ -100,12 +152,42 @@ export const AnnouncementService = {
     NotificationService.sendEmailPayload(emailPayload);
   },
 
-  async updateAnnouncement(courseCode, announcementId, title, content, isPinned) {
+  async updateAnnouncement(courseCode, announcementId, actorUsername, { title, content, isPinned, notify, keepAttachments, files }) {
     const course = await CourseModel.findCourseByCode(courseCode);
     if (!course) throw new Error("找不到課程");
     if (!title) throw new Error("缺少標題");
-    const affected = await AnnouncementModel.update(announcementId, course.id, title, content, isPinned);
+
+    const existing = await AnnouncementModel.findInCourse(announcementId, course.id);
+    if (!existing) throw new Error("找不到公告");
+
+    const attachments = mergeAttachments(existing.attachments_json, keepAttachments, files);
+    const affected = await AnnouncementModel.update(
+      announcementId,
+      course.id,
+      title,
+      content,
+      asBool(isPinned, false),
+      JSON.stringify(attachments),
+    );
     if (!affected) throw new Error("找不到公告");
+
+    if (!wantsNotification(notify)) return;
+
+    try {
+      await AnnouncementModel.clearReads(announcementId);
+      const teacher = actorUsername ? await AuthModel.getTeacherById(actorUsername) : null;
+      await NotificationService.notifyByCourseCode({
+        courseCode,
+        type: "announcement",
+        refId: announcementId,
+        headline: `公告已更新：${title}`,
+        message: previewText(content, 100),
+        excludeUsername: teacher ? null : actorUsername,
+        linkPath: `/course/${course.course_code}?announcement=${announcementId}`,
+      });
+    } catch (notifyError) {
+      console.error("[notify] 公告更新通知失敗", notifyError?.message || notifyError);
+    }
   },
 
   async deleteAnnouncement(courseCode, announcementId) {
