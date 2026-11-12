@@ -1,12 +1,14 @@
 const TOKEN_KEY = "accessToken";
 
 export function getAccessToken() {
-  return localStorage.getItem(TOKEN_KEY) || "";
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || "";
 }
 
-export function setAccessToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+export function setAccessToken(token, remember = false) {
+  const target = remember ? localStorage : sessionStorage
+  const other = remember ? sessionStorage : localStorage
+  other.removeItem(TOKEN_KEY)
+  target.setItem(TOKEN_KEY, token)
 }
 
 /** 解碼 JWT payload（僅供前端顯示路由／UI，權限以後端驗證為準） */
@@ -70,10 +72,16 @@ export function getUsernameFromToken() {
 const MUST_CHANGE_KEY = "mustChangePassword";
 
 export function setMustChangePassword(required) {
-  if (required) localStorage.setItem(MUST_CHANGE_KEY, "1");
-  else localStorage.removeItem(MUST_CHANGE_KEY);
+  if (required) {
+    localStorage.setItem(MUST_CHANGE_KEY, "1");
+    sessionStorage.setItem(MUST_CHANGE_KEY, "1");
+  }
+  else {
+    localStorage.removeItem(MUST_CHANGE_KEY);
+    sessionStorage.removeItem(MUST_CHANGE_KEY);
+  }
 }
 
 export function getMustChangePassword() {
-  return localStorage.getItem(MUST_CHANGE_KEY) === "1";
+  return localStorage.getItem(MUST_CHANGE_KEY) === "1" || sessionStorage.getItem(MUST_CHANGE_KEY) === "1";
 }

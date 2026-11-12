@@ -83,7 +83,7 @@
 | --- | --- | --- | --- | --- |
 | `announcements` | 課程公告 | `course_id`、`teacher_id`、`title`、`content`、`is_pinned`、`author_username`（ALTER 加入，記錄實際發文者，舊資料為 NULL）、`created_at` | `id` | **無 FK**（app-level → `courses.id` / `teachers.id`） |
 | `announcement_reads` | 已讀紀錄 | `student_id`、`announcement_id`；UNIQUE(`student_id`, `announcement_id`) | `id` | **無 FK**（app-level → `students.id` / `announcements.id`） |
-
+| `site_announcements` | 全站公告| `title`、`content`、`category`（ENUM：`update` / `maintenance` / `notice`，預設 `notice`）、`is_pinned`、`created_at`；INDEX(`is_pinned`, `created_at`) | `id` | **無**|
 > 助教發公告時，`teacher_id` 會寫入「該課程第一位授課教師」的 `teachers.id`（助教不在 `teachers` 表），`author_username` 才是實際發文的助教帳號，顯示作者姓名時優先用這欄。
 
 ### 3.4 作業

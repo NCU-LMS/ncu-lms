@@ -13,6 +13,7 @@ import discussionRoutes from "./src/routes/discussionRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
 import homeworkRoutes from "./src/routes/homeworkRoutes.js";
 import homeworkAiRoutes from "./src/routes/homeworkAiRoutes.js";
+import siteAnnouncementsRoutes from "./src/routes/siteAnnouncementsRoutes.js";
 import { authMiddleware } from "./src/middlewares/authMiddleware.js";
 import { errorHandler } from "./src/middlewares/errorHandler.js";
 import { ensureSchema } from "./src/utils/ensureSchema.js";
@@ -35,6 +36,7 @@ if (!fs.existsSync(uploadsRoot)) {
 app.use("/uploads", express.static(uploadsRoot));
 
 app.use("/api/auth", authRoutes);
+app.use("/api", siteAnnouncementsRoutes);
 
 app.use("/api/courses", authMiddleware, courseRoutes);
 app.use("/api/announcements", authMiddleware, announcementRoutes);

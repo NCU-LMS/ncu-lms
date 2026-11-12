@@ -25,7 +25,7 @@ const newAnnouncement = ref({
 })
 
 const loadUser = async() => {
-  const stored = localStorage.getItem("user")
+  const stored = localStorage.getItem("user") || sessionStorage.getItem("user") 
 
   if (!stored) {
     router.push('/')

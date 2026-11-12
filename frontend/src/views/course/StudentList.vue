@@ -21,7 +21,7 @@ const user = ref({
 
 //驗證登入身分與權限
 const loadUser = async () => {
-  const stored = localStorage.getItem("user")
+  const stored = localStorage.getItem("user") || sessionStorage.getItem("user")
   if (!stored) {
     router.push('/')
     return
@@ -62,12 +62,12 @@ const manualForm = ref({
 })
 const isSubmitting = ref(false)
 
-// 3. 觸發隱藏的檔案上傳輸入框
+// 打開隱藏的檔案上傳輸入框
 const triggerFileInput = () => {
   fileInput.value.click()
 }
 
-// 4. 核心：選擇 Excel 檔案後，透過 api.post 進行同步
+// 選擇 Excel 檔案後，透過 api.post 進行同步
 const handleFileChange = async (event) => {
   const file = event.target.files[0]
   if (!file) return
