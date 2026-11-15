@@ -52,6 +52,7 @@ router.delete("/:courseId/materials/:materialId", staff, MaterialController.dele
 router.get("/:courseId/studentlist", rosterManagers, StudentListController.getCourseStudents);
 router.post("/:courseId/studentlist", rosterManagers, uploadSpreadsheet.single("file"), StudentListController.syncStudents);
 router.post("/:courseId/studentlist/update", rosterManagers, StudentListController.updateStudentRole);
+router.post("/:courseId/studentlist/unlock-password-reset", rosterManagers, StudentListController.unlockPasswordReset);
 
 //AIQuiz
 router.use("/:courseId/aiquizzes", aiQuizRoutes);

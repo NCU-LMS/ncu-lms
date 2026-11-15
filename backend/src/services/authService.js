@@ -72,6 +72,13 @@ function hashPasswordResetToken(token) {
   return crypto.createHash("sha256").update(String(token), "utf8").digest("hex");
 }
 
+// 忘記密碼安全限制
+const RESET_MAX_FAILED_ATTEMPTS = 3; // 驗證碼累計輸錯 3 次即鎖定，需由老師／助教解鎖
+const RESET_EMAIL_INTERVAL_SECONDS = 15 * 60; // 每次寄信至少間隔 15 分鐘
+const RESET_EMAIL_DAILY_LIMIT = 3; // 每個帳號每天最多寄 3 次
+const RESET_LOCKED_MESSAGE =
+  `驗證碼已輸錯 ${RESET_MAX_FAILED_ATTEMPTS} 次，忘記密碼功能已鎖定，請聯絡授課老師或助教解鎖`;
+
 function generateResetCode() {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 }
@@ -234,13 +241,42 @@ export const AuthService = {
     return { message: "信箱已更新", email };
   },
 
-  /** 忘記密碼：寄出信箱驗證碼 */
+  /** 忘記密碼：寄出信箱驗證碼（限制寄送頻率；已鎖定的帳號不再寄送） */
   async requestPasswordReset({ email }) {
     const normalized = normalizeEmail(email, { required: true });
     const account = await AuthModel.findAccountByEmail(normalized);
     if (!account) throw new Error("找不到此信箱對應的帳號");
 
     const code = generateResetCode();
+    let logId;
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      // 鎖住帳號列，避免同時送出多個請求繞過頻率限制
+      const locked = await AuthModel.lockAccountRowForUpdate(account.id, connection);
+      if (locked?.reset_locked_at) throw new Error(RESET_LOCKED_MESSAGE);
+
+      const { secondsSinceLast, sentToday } = await AuthModel.getPasswordResetEmailStats(
+        account.id,
+        connection,
+      );
+      if (sentToday >= RESET_EMAIL_DAILY_LIMIT) {
+        throw new Error(`今日驗證信已寄送 ${RESET_EMAIL_DAILY_LIMIT} 次，已達上限，請明天再試`);
+      }
+      if (secondsSinceLast != null && secondsSinceLast < RESET_EMAIL_INTERVAL_SECONDS) {
+        const waitMinutes = Math.ceil((RESET_EMAIL_INTERVAL_SECONDS - secondsSinceLast) / 60);
+        throw new Error(`驗證信寄送過於頻繁，請於 ${waitMinutes} 分鐘後再試（每次間隔 15 分鐘）`);
+      }
+
+      logId = await AuthModel.insertPasswordResetEmailLog(account.id, connection);
+      await connection.commit();
+    } catch (e) {
+      await connection.rollback();
+      throw e;
+    } finally {
+      connection.release();
+    }
+
     await AuthModel.deletePasswordResetTokensForAccount(account.id);
     await AuthModel.insertPasswordResetToken(account.id, hashPasswordResetToken(code));
 
@@ -250,6 +286,9 @@ export const AuthService = {
       username: account.username,
     });
     if (!sent) {
+      // 沒寄出去就不算一次，也不留下可用的驗證碼
+      await AuthModel.deletePasswordResetEmailLog(logId);
+      await AuthModel.deletePasswordResetTokensForAccount(account.id);
       throw new Error("系統尚未設定寄信功能，請聯絡管理員");
     }
 
@@ -265,19 +304,55 @@ export const AuthService = {
 
     const account = await AuthModel.findAccountByEmail(normalized);
     if (!account) throw new Error("找不到此信箱對應的帳號");
+    if (account.reset_locked_at) throw new Error(RESET_LOCKED_MESSAGE);
 
-    const row = await AuthModel.findActivePasswordResetByTokenHash(hashPasswordResetToken(rawCode));
-    if (!row || Number(row.account_id) !== Number(account.id)) {
-      throw new Error("驗證碼不正確或已過期，請重新申請");
+    const row = await AuthModel.findActivePasswordResetForAccount(account.id);
+    if (!row) throw new Error("驗證碼已過期或尚未申請，請重新寄送驗證碼");
+
+    // 先佔用一次機會再比對，同時大量送出也無法超過次數上限
+    const reserved = await AuthModel.reservePasswordResetAttempt(account.id, RESET_MAX_FAILED_ATTEMPTS);
+    if (!reserved) {
+      await AuthModel.lockPasswordResetIfExceeded(account.id, RESET_MAX_FAILED_ATTEMPTS);
+      throw new Error(RESET_LOCKED_MESSAGE);
+    }
+
+    const expected = Buffer.from(row.token_hash, "utf8");
+    const actual = Buffer.from(hashPasswordResetToken(rawCode), "utf8");
+    if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+      const { failedAttempts, locked } = await AuthModel.lockPasswordResetIfExceeded(
+        account.id,
+        RESET_MAX_FAILED_ATTEMPTS,
+      );
+      if (locked) {
+        await AuthModel.deletePasswordResetTokensForAccount(account.id);
+        throw new Error(RESET_LOCKED_MESSAGE);
+      }
+      const remaining = Math.max(RESET_MAX_FAILED_ATTEMPTS - failedAttempts, 0);
+      throw new Error(`驗證碼不正確，再輸錯 ${remaining} 次將鎖定，需請授課老師或助教解鎖`);
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     await AuthModel.updateAccountPasswordById(account.id, passwordHash);
     await AuthModel.markPasswordResetTokenUsed(row.id);
     await AuthModel.deletePasswordResetTokensForAccount(account.id);
+    await AuthModel.clearPasswordResetLock(account.id);
     await AuthModel.setMustChangePassword(account.id, false);
 
     return { message: "密碼已重設，請使用新密碼登入" };
+  },
+
+  /** 解除忘記密碼鎖定（權限由呼叫端檢查），並清掉舊驗證碼 */
+  async unlockPasswordReset(accountId) {
+    await AuthModel.clearPasswordResetLock(accountId);
+    await AuthModel.deletePasswordResetTokensForAccount(accountId);
+  },
+
+  /** 管理員依帳號解鎖（老師、管理員帳號被鎖時用） */
+  async unlockPasswordResetByUsername(username) {
+    const account = await AuthModel.findAccountByUsername(String(username ?? "").trim());
+    if (!account) throw new Error("找不到使用者");
+    await this.unlockPasswordReset(account.id);
+    return { message: `已解除 ${account.username} 的忘記密碼鎖定` };
   },
 
   /** 登入後變更密碼（含首次強制變更） */
@@ -306,25 +381,5 @@ export const AuthService = {
     if (!account) throw new Error("找不到使用者");
     await AuthModel.updateAvatarUrl(account.id, avatarUrl);
     return { avatar_url: avatarUrl };
-  },
-
-  /** 舊版信件 token 重設（保留相容） */
-  async resetPasswordWithToken({ token, password, confirmPassword }) {
-    const t = String(token ?? "").trim();
-    if (!t) throw new Error("重設連結無效或已過期");
-
-    validateNewPassword(password, confirmPassword);
-
-    const tokenHash = hashPasswordResetToken(t);
-    const row = await AuthModel.findActivePasswordResetByTokenHash(tokenHash);
-    if (!row) throw new Error("重設連結已失效或已使用，請重新申請忘記密碼");
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    await AuthModel.updateAccountPasswordById(row.account_id, passwordHash);
-    await AuthModel.markPasswordResetTokenUsed(row.id);
-    await AuthModel.deletePasswordResetTokensForAccount(row.account_id);
-    await AuthModel.setMustChangePassword(row.account_id, false);
-
-    return { message: "密碼已重設，請使用新密碼登入" };
   },
 };

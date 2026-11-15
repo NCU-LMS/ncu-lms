@@ -77,6 +77,18 @@ const MIGRATIONS = [
   // 要當哪一門課的助教，由授課老師或管理員在該課的學生名冊勾選
   "UPDATE accounts SET role = 'student' WHERE role = 'ta'",
   "ALTER TABLE accounts ADD COLUMN email VARCHAR(100) NULL",
+  // 忘記密碼：驗證碼累計輸錯次數；達上限時寫入 reset_locked_at，需由老師／助教／管理員解鎖
+  "ALTER TABLE accounts ADD COLUMN reset_failed_attempts INT NOT NULL DEFAULT 0",
+  "ALTER TABLE accounts ADD COLUMN reset_locked_at DATETIME NULL",
+  // 忘記密碼驗證信寄送紀錄，用來限制寄送頻率（間隔與每日上限）
+  `CREATE TABLE IF NOT EXISTS password_reset_email_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_reset_email_log_account (account_id, sent_at),
+    CONSTRAINT fk_reset_email_log_account
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+  )`,
   // notifications：站內通知（公告、作業、測驗、討論）
   `CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,

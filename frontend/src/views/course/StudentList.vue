@@ -132,6 +132,24 @@ const toggleTa = async (student, checked) => {
   }
 }
 
+// 學生忘記密碼時驗證碼輸錯 3 次會被鎖定，由老師／助教在這裡解鎖
+const unlocking = ref('')
+const unlockPasswordReset = async (student) => {
+  if (!confirm(`確定要解除 ${student.name}（${student.student_id}）的忘記密碼鎖定嗎？`)) return
+  unlocking.value = student.student_id
+  try {
+    const res = await api.post(`/api/courses/${courseCode}/studentlist/unlock-password-reset`, {
+      studentId: student.student_id
+    })
+    alert(res.data.message || '已解鎖')
+    await fetchStudents()
+  } catch (err) {
+    alert(err.response?.data?.message || '解鎖失敗')
+  } finally {
+    unlocking.value = ''
+  }
+}
+
 // 新增或修改學生身分
 const handleManualSubmit = async () => {
   if (!manualForm.value.studentId.trim()) {
@@ -285,6 +303,7 @@ onMounted(async () => {
         <div class="w-64">電子郵件</div>
         <div class="w-32 text-center">身分</div>
         <div v-if="canAssignTa" class="w-14 text-center">助教</div>
+        <div v-if="canManage" class="w-24 text-center">密碼重設</div>
       </div>
 
       <!-- 學生列表 -->
@@ -312,6 +331,20 @@ onMounted(async () => {
               :title="student.role === 'ta' ? '取消助教' : '設為這門課的助教'"
               @change="toggleTa(student, $event.target.checked)"
             />
+          </div>
+          <div v-if="canManage" class="w-24 text-center">
+            <button
+              v-if="Number(student.password_reset_locked) && student.student_id !== user.user_id"
+              type="button"
+              class="px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400"
+              :disabled="unlocking === student.student_id"
+              title="此學生忘記密碼時驗證碼輸錯 3 次，已被鎖定"
+              @click="unlockPasswordReset(student)"
+            >
+              {{ unlocking === student.student_id ? '解鎖中…' : '已鎖定・解鎖' }}
+            </button>
+            <span v-else-if="Number(student.password_reset_locked)" class="text-xs text-red-600">已鎖定</span>
+            <span v-else class="text-xs text-gray-400">-</span>
           </div>
         </li>
       </ul>

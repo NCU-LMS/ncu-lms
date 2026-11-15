@@ -5,6 +5,10 @@
       <p class="text-sm text-gray-600 mb-4">
         請輸入帳號綁定的信箱。系統寄出驗證碼後，請至信箱查收，並在本頁輸入驗證碼與新密碼。
       </p>
+      <ul class="text-xs text-gray-500 mb-4 list-disc list-inside space-y-1">
+        <li>驗證信每次寄送需間隔 15 分鐘，每天最多 3 次。</li>
+        <li>驗證碼輸錯 3 次將鎖定，需請授課老師或助教解鎖。</li>
+      </ul>
 
       <form class="flex flex-col gap-4" @submit.prevent="sent ? resetPassword() : sendCode()">
         <input
