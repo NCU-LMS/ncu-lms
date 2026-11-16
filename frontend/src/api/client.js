@@ -1,12 +1,12 @@
 import axios from "axios";
-import { courseRoleFor } from "@/utils/auth.js";
+import { courseRoleFor, getAccessToken } from "@/utils/auth.js";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "",
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
+  const token = getAccessToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -26,7 +26,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const header = error.config?.headers?.Authorization || error.config?.headers?.authorization || "";
       const requestToken = String(header).replace(/^Bearer\s+/i, "");
-      const currentToken = localStorage.getItem("accessToken") || "";
+      const currentToken = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken") || "";
       const staleRequest = Boolean(currentToken && requestToken && requestToken !== currentToken);
       if (!staleRequest) {
         const hadToken = Boolean(currentToken);
