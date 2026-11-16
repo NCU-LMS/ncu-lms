@@ -1,11 +1,17 @@
 import { pool } from "../config/db.js";
 
+//暫時搜尋上限為20且只有一個分頁
+const MAX_ANNOUNCEMENTS = 20;
+
 export const siteAnnouncementsModel = {
 
   async getAnnouncements() {
     const [rows] = await pool.execute(
       `SELECT a.id, a.title, a.content, a.category, a.is_pinned, a.created_at
-       FROM site_announcements a`
+       FROM site_announcements a
+       ORDER BY is_pinned DESC, created_at DESC, id DESC
+       LIMIT ?`,
+      [MAX_ANNOUNCEMENTS]
     );
     return rows;
   },

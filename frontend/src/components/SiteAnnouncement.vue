@@ -15,11 +15,11 @@
 
     <p v-if="loading" class="text-gray-500 py-4">載入中…</p>
     <p v-else-if="loadError" class="text-red-600 py-4">{{ loadError }}</p>
-    <p v-else-if="!sortedList.length" class="text-gray-500 py-4">目前沒有公告</p>
+    <p v-else-if="!announcements.length" class="text-gray-500 py-4">目前沒有公告</p>
 
     <ul v-else class="divide-y divide-gray-200">
       <li
-        v-for="item in sortedList"
+        v-for="item in announcements"
         :key="item.id"
         class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 py-3 px-1 hover:bg-blue-50 cursor-pointer"
         @click="openDetail(item)"
@@ -152,14 +152,14 @@ const loading = ref(false)
 const loadError = ref('')
 const selected = ref(null)
 
-// 置頂優先，其次依日期新到舊
-const sortedList = computed(() =>
-  [...announcements.value].sort(
-    (a, b) =>
-      Number(Boolean(b.is_pinned)) - Number(Boolean(a.is_pinned)) ||
-      new Date(b.created_at) - new Date(a.created_at)
-  )
-)
+// 置頂優先，其次依日期新到舊(已經挪到後台排序)
+// const sortedList = computed(() =>
+//   [...announcements.value].sort(
+//     (a, b) =>
+//       Number(Boolean(b.is_pinned)) - Number(Boolean(a.is_pinned)) ||
+//       new Date(b.created_at) - new Date(a.created_at)
+//   )
+// )
 
 // 設置公告日期
 const formatDate = (raw) => {
