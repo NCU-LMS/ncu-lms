@@ -14,6 +14,7 @@ import notificationRoutes from "./src/routes/notificationRoutes.js";
 import homeworkRoutes from "./src/routes/homeworkRoutes.js";
 import homeworkAiRoutes from "./src/routes/homeworkAiRoutes.js";
 import siteAnnouncementsRoutes from "./src/routes/siteAnnouncementsRoutes.js";
+import siteAnnouncementsAdminRoutes from "./src/routes/siteAnnouncementsAdminRoutes.js";
 import { authMiddleware } from "./src/middlewares/authMiddleware.js";
 import { errorHandler } from "./src/middlewares/errorHandler.js";
 import { ensureSchema } from "./src/utils/ensureSchema.js";
@@ -36,12 +37,13 @@ if (!fs.existsSync(uploadsRoot)) {
 app.use("/uploads", express.static(uploadsRoot));
 
 app.use("/api/auth", authRoutes);
-app.use("/api", siteAnnouncementsRoutes);
+app.use("/api/site_announcements", siteAnnouncementsRoutes);
 
 app.use("/api/courses", authMiddleware, courseRoutes);
 app.use("/api/announcements", authMiddleware, announcementRoutes);
 app.use("/api/discussions", authMiddleware, discussionRoutes);
 app.use("/api/notifications", authMiddleware, notificationRoutes);
+app.use("/api/site_announcements/admin", authMiddleware, siteAnnouncementsAdminRoutes);
 app.use("/api", authMiddleware, homeworkRoutes);
 app.use("/api", authMiddleware, homeworkAiRoutes);
 
