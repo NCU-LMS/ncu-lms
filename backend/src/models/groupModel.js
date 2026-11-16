@@ -408,8 +408,31 @@ export const GroupModel = {
   },
 
   async createApplication(courseId, groupId, studentId, message) {
+    const connection = await pool.getConnection();
     try {
-      const [rows] = await pool.execute(
+      await connection.beginTransaction();
+      const [groups] = await connection.execute(
+        `SELECT id
+         FROM course_groups
+         WHERE course_id = ? AND id = ?
+         FOR UPDATE`,
+        [courseId, groupId],
+      );
+      if (!groups.length) throw new Error("小組不存在");
+
+      const [members] = await connection.execute(
+        `SELECT COUNT(*) AS memberCount
+         FROM course_group_memberships
+         WHERE course_id = ? AND group_id = ?`,
+        [courseId, groupId],
+      );
+      if (Number(members[0].memberCount) === 0) {
+        const error = new Error("此小組目前沒有組員，請直接加入並成為組長");
+        error.code = "GROUP_EMPTY";
+        throw error;
+      }
+
+      const [rows] = await connection.execute(
         `SELECT status FROM course_group_applications
          WHERE group_id = ? AND student_id = ?`,
         [groupId, studentId],
@@ -420,25 +443,30 @@ export const GroupModel = {
         throw error;
       }
       if (rows.length) {
-        await pool.execute(
+        await connection.execute(
           `UPDATE course_group_applications
            SET message = ?, status = 'pending', updated_at = CURRENT_TIMESTAMP
            WHERE group_id = ? AND student_id = ?`,
           [message || null, groupId, studentId],
         );
+        await connection.commit();
         return;
       }
-      await pool.execute(
+      await connection.execute(
         `INSERT INTO course_group_applications
            (course_id, group_id, student_id, message, status)
          VALUES (?, ?, ?, ?, 'pending')`,
         [courseId, groupId, studentId, message || null],
       );
+      await connection.commit();
     } catch (error) {
+      await connection.rollback();
       if (error.code === "ER_DUP_ENTRY") {
         error.code = "APPLICATION_ALREADY_EXISTS";
       }
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -603,6 +631,12 @@ export const GroupModel = {
          SET leader_student_id = ?
          WHERE course_id = ? AND id = ?`,
         [studentId, courseId, groupId],
+      );
+      await connection.execute(
+        `UPDATE course_group_applications
+         SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+         WHERE course_id = ? AND group_id = ? AND student_id = ? AND status = 'pending'`,
+        [courseId, groupId, studentId],
       );
       await connection.commit();
     } catch (error) {

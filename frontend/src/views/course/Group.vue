@@ -305,8 +305,14 @@
                 <p v-else class="text-sm text-gray-500">目前沒有待處理的加入申請。</p>
               </div>
 
+              <p
+                v-if="!canManage && !group.isMine && !group.members.length"
+                class="mt-3 border-t pt-3 text-sm text-blue-700"
+              >
+                此小組目前沒有組員，加入後會直接成為組長，不需要等待審核。
+              </p>
               <form
-                v-if="!canManage && !group.isMine && (group.recruitmentEnabled || group.myApplicationStatus === 'pending')"
+                v-if="!canManage && !group.isMine && group.members.length > 0 && (group.recruitmentEnabled || group.myApplicationStatus === 'pending')"
                 class="mt-3 border-t pt-3 space-y-2"
                 @submit.prevent="submitApplication(group)"
               >
