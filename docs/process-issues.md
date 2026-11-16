@@ -156,7 +156,7 @@ c5bdf4c merge notification                                          （同上）
 
 ## 8. 專案 / 任務管理（現況）
 
-目前已採用 Jira（key `NL`）+ Discord 的流程（見 [workflow.md 第 1 章](workflow.md#1-jira-任務管理)）。**TODO / 待確認**：這份文件核對當下（2026-09-28）看不出 Jira/Discord 是何時導入的，也看不出導入前（2026-03～05 那段 git 歷史）是否有任何任務追蹤——從 commit 訊息完全沒有 Issue/Ticket 編號引用來看，當時應該是沒有的。
+目前已採用 Jira（key `NL`）+ Discord 的流程（見 [workflow.md 第 1 章](workflow.md#1-jira-ticket-管理)）。**TODO / 待確認**：這份文件核對當下（2026-09-28）看不出 Jira/Discord 是何時導入的，也看不出導入前（2026-03～05 那段 git 歷史）是否有任何任務追蹤——從 commit 訊息完全沒有 Issue/Ticket 編號引用來看，當時應該是沒有的。
 
 **後續追蹤（2026-10-17）**：PR #4 的 11 個 commit 都沒有 Jira 編號（commit 訊息是英文描述，不含 `NL-xx`），PR 本身是否帶票號無法從 git 歷史確認；看板上也沒有對應的票。
 
