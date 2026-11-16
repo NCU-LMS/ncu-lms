@@ -79,6 +79,9 @@ function handleError(res, error, fallbackMessage) {
   if (error.code === "GROUP_AT_CAPACITY") {
     return res.status(409).json({ code: error.code, message });
   }
+  if (error.code === "GROUP_EMPTY") {
+    return res.status(409).json({ code: error.code, message });
+  }
   if (message.includes("請選擇新的組長") || message.includes("不是此小組成員")) {
     return res.status(400).json({ message });
   }
