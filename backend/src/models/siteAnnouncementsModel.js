@@ -17,7 +17,7 @@ export const siteAnnouncementsModel = {
        WHERE id = ?`,
        [id]
     );
-    return rows;
+    return rows[0] ?? null;
   },
 
   async create(title, content, category = 'notice', is_pinned = false, conn = pool) {
