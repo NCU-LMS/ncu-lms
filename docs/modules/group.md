@@ -39,6 +39,8 @@
 - `PUT /:groupId/recruitment`（student，組長開關招募）
 - `PUT /:groupId/leader`（student，轉移組長）
 - `GET /:groupId/applications`、`POST /:groupId/applications`、`POST /:groupId/applications/:applicationId/approve`（student）
+- `GET /:groupId/discussion`、`POST /:groupId/discussion`、`DELETE /:groupId/discussion/:postId`（小組成員；刪除只標記單則留言，不刪回覆）
+- `GET /:groupId/discussion/:postId/deleted-content`、`POST /:groupId/discussion/:postId/restore`（留言作者或課程 teacher/ta）
 - `DELETE /:groupId`（staff，刪除小組）
 - `POST /:groupId/members/me`（student/ta，加入）、`DELETE /:groupId/members/me`（student/ta，退出）
 
@@ -52,6 +54,8 @@
 - `getApplications`：組長查看待審加入申請
 - `submitApplication`：送出加入申請
 - `approveApplication`：組長核准申請
+- `getGroupDiscussion`、`addGroupDiscussionPost`、`deleteGroupDiscussionPost`：小組討論留言 CRUD；刪除保留留言與回覆資料，只設定刪除狀態及操作者/時間
+- `getDeletedGroupDiscussionPost`、`restoreGroupDiscussionPost`：留言作者或課程 teacher/ta 可查看原文及復原留言
 - `leaveGroup`：退出小組
 - `getGroupHomeworks`：取得小組作業彙整
 - `createGroup`：建立一組（學生自建或教師單組建立）
@@ -97,13 +101,18 @@
 | GET | `/api/courses/:courseCode/groups/:groupId/applications` | `getApplications` | JWT + (student) |
 | POST | `/api/courses/:courseCode/groups/:groupId/applications` | `submitApplication` | JWT + (student) |
 | POST | `/api/courses/:courseCode/groups/:groupId/applications/:applicationId/approve` | `approveApplication` | JWT + (student) |
+| GET | `/api/courses/:courseCode/groups/:groupId/discussion` | `getGroupDiscussion` | JWT + (小組成員、課程 teacher/ta) |
+| POST | `/api/courses/:courseCode/groups/:groupId/discussion` | `addGroupDiscussionPost` | JWT + (小組成員、課程 teacher/ta) |
+| DELETE | `/api/courses/:courseCode/groups/:groupId/discussion/:postId` | `deleteGroupDiscussionPost` | JWT + (留言作者、課程 teacher/ta) |
+| GET | `/api/courses/:courseCode/groups/:groupId/discussion/:postId/deleted-content` | `getDeletedGroupDiscussionPost` | JWT + (留言作者、課程 teacher/ta) |
+| POST | `/api/courses/:courseCode/groups/:groupId/discussion/:postId/restore` | `restoreGroupDiscussionPost` | JWT + (留言作者、課程 teacher/ta) |
 | DELETE | `/api/courses/:courseCode/groups/:groupId` | `deleteGroup` | JWT + (teacher, ta) |
 | POST | `/api/courses/:courseCode/groups/:groupId/members/me` | `joinGroup` | JWT + (student, ta) |
 | DELETE | `/api/courses/:courseCode/groups/:groupId/members/me` | `leaveGroup` | JWT + (student, ta) |
 
 ## 資料庫
 
-新增的小組相關資料表見 [database.md](../database.md)（`groups`、小組成員、招募設定、加入申請——實際表名以 `ensureSchema.js`/`groupModel.js` 為準，`database.md` 尚待補上這幾張表的章節）。
+小組討論留言刪除採軟刪除：資料列與原文保留於 `course_group_discussion_posts`，一般討論 API 只回傳遮蔽後的留言；僅留言作者或該課 teacher/ta 可讀取原文及復原。刪除或復原都不會連帶刪除回覆。小組相關資料表見 [database.md](../database.md)（實際表名以 `ensureSchema.js`/`groupModel.js` 為準，`database.md` 尚待補上這幾張表的章節）。
 
 ## 已知問題（本模組）
 

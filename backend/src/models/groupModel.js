@@ -185,6 +185,17 @@ export const GroupModel = {
     return rows[0] || null;
   },
 
+  async getDeletedGroupDiscussionPost(groupId, postId) {
+    const [rows] = await pool.execute(
+      `SELECT student_id AS studentId, content,
+              attachment_file_name AS attachmentFileName
+       FROM course_group_discussion_posts
+       WHERE group_id = ? AND id = ? AND is_deleted = 1`,
+      [groupId, postId],
+    );
+    return rows[0] || null;
+  },
+
   async createGroupDiscussionPost(groupId, studentId, parentPostId, content, file) {
     if (parentPostId !== null && parentPostId !== undefined) {
       const [parents] = await pool.execute(
@@ -218,6 +229,17 @@ export const GroupModel = {
        WHERE group_id = ? AND id = ? AND is_deleted = 0
          AND (? = 1 OR student_id = ?)`,
       [studentId, groupId, postId, isStaff ? 1 : 0, studentId],
+    );
+    return result.affectedRows > 0;
+  },
+
+  async restoreGroupDiscussionPost(groupId, postId, studentId, isStaff) {
+    const [result] = await pool.execute(
+      `UPDATE course_group_discussion_posts
+       SET is_deleted = 0
+       WHERE group_id = ? AND id = ? AND is_deleted = 1
+         AND (? = 1 OR student_id = ?)`,
+      [groupId, postId, isStaff ? 1 : 0, studentId],
     );
     return result.affectedRows > 0;
   },

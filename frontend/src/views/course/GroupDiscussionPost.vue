@@ -18,6 +18,32 @@
         刪除記錄：{{ post.deletedByName || post.deletedBy || '未知使用者' }}
         <span v-if="post.deletedAt">・{{ new Date(post.deletedAt).toLocaleString() }}</span>
       </p>
+      <div v-if="canReviewDeleted" class="mt-2 flex flex-wrap gap-3">
+        <button
+          type="button"
+          class="text-xs font-bold text-[#337ab7] hover:underline disabled:opacity-50"
+          :disabled="deletedContentLoadingId === post.id"
+          @click="toggleDeletedContent"
+        >
+          {{ deletedContentLoadingId === post.id
+            ? '讀取中...'
+            : showDeletedContent ? '隱藏原留言' : '查看原留言' }}
+        </button>
+        <button
+          type="button"
+          class="text-xs font-bold text-green-700 hover:underline disabled:opacity-50"
+          :disabled="restoring"
+          @click="restore"
+        >
+          {{ restoring ? '復原中...' : '復原留言' }}
+        </button>
+      </div>
+      <p
+        v-if="showDeletedContent"
+        class="mt-2 rounded border bg-white px-3 py-2 text-gray-700 whitespace-pre-wrap break-words"
+      >
+        {{ deletedContent || '（此留言沒有文字內容，可能只有附件）' }}
+      </p>
     </div>
     <p v-else class="text-gray-700 whitespace-pre-wrap break-words">{{ post.content }}</p>
     <button
@@ -67,6 +93,10 @@
           :is-staff="isStaff"
           :posting="posting"
           :on-reply="onReply"
+          :deleted-contents="deletedContents"
+          :deleted-content-loading-id="deletedContentLoadingId"
+          :on-view-deleted-content="onViewDeletedContent"
+          :on-restore="onRestore"
           @delete="(item) => $emit('delete', item)"
         />
       </li>
@@ -75,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { downloadFile } from '@/utils/files.js'
 
@@ -87,6 +117,10 @@ const props = defineProps({
   isStaff: { type: Boolean, default: false },
   posting: { type: Boolean, default: false },
   onReply: { type: Function, required: true },
+  deletedContents: { type: Object, required: true },
+  deletedContentLoadingId: { type: [Number, String], default: null },
+  onViewDeletedContent: { type: Function, required: true },
+  onRestore: { type: Function, required: true },
 })
 
 const emit = defineEmits(['delete'])
@@ -94,7 +128,33 @@ const replyText = ref('')
 const replyAttachment = ref(null)
 const replyFileInput = ref(null)
 const downloading = ref(false)
+const restoring = ref(false)
+const showDeletedContent = ref(false)
 const route = useRoute()
+const canReviewDeleted = props.isStaff || props.post.studentId === props.username
+const deletedContent = computed(() => props.deletedContents[props.post.id])
+
+const toggleDeletedContent = async () => {
+  if (showDeletedContent.value) {
+    showDeletedContent.value = false
+    return
+  }
+  const isLoaded = Object.prototype.hasOwnProperty.call(
+    props.deletedContents,
+    props.post.id,
+  )
+  if (!isLoaded && !(await props.onViewDeletedContent(props.post))) return
+  showDeletedContent.value = true
+}
+
+const restore = async () => {
+  restoring.value = true
+  try {
+    await props.onRestore(props.post)
+  } finally {
+    restoring.value = false
+  }
+}
 
 const selectReplyAttachment = (event) => {
   const file = event.target.files?.[0] || null

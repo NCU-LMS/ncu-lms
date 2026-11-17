@@ -82,6 +82,15 @@ function handleError(res, error, fallbackMessage) {
   if (error.code === "GROUP_EMPTY") {
     return res.status(409).json({ code: error.code, message });
   }
+  if (error.code === "GROUP_POST_NOT_FOUND") {
+    return res.status(404).json({ code: error.code, message });
+  }
+  if (error.code === "GROUP_POST_FORBIDDEN") {
+    return res.status(403).json({ code: error.code, message });
+  }
+  if (error.code === "GROUP_POST_ALREADY_RESTORED") {
+    return res.status(409).json({ code: error.code, message });
+  }
   if (message.includes("請選擇新的組長") || message.includes("不是此小組成員")) {
     return res.status(400).json({ message });
   }
@@ -321,6 +330,34 @@ export const GroupController = {
       res.json(posts);
     } catch (error) {
       handleError(res, error, "讀取小組討論失敗");
+    }
+  },
+
+  async getDeletedGroupDiscussionPost(req, res) {
+    try {
+      const post = await GroupService.getDeletedGroupDiscussionPost(
+        req.params.courseCode,
+        req.params.groupId,
+        req.params.postId,
+        req.user,
+      );
+      res.json(post);
+    } catch (error) {
+      handleError(res, error, "讀取已刪除留言失敗");
+    }
+  },
+
+  async restoreGroupDiscussionPost(req, res) {
+    try {
+      await GroupService.restoreGroupDiscussionPost(
+        req.params.courseCode,
+        req.params.groupId,
+        req.params.postId,
+        req.user,
+      );
+      res.json({ message: "留言已復原" });
+    } catch (error) {
+      handleError(res, error, "復原小組討論留言失敗");
     }
   },
 

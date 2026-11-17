@@ -80,6 +80,10 @@
             :is-staff="isStaff"
             :posting="posting"
             :on-reply="submitPost"
+            :deleted-contents="deletedContents"
+            :deleted-content-loading-id="deletedContentLoadingId"
+            :on-view-deleted-content="loadDeletedContent"
+            :on-restore="restorePost"
             @delete="deletePost"
           />
         </li>
@@ -139,6 +143,8 @@ const newPost = ref('')
 const activeTab = ref('posts')
 const selectedAttachment = ref(null)
 const attachmentInput = ref(null)
+const deletedContents = ref({})
+const deletedContentLoadingId = ref(null)
 const loading = ref(true)
 const posting = ref(false)
 const downloadingPostId = ref(null)
@@ -239,6 +245,37 @@ const deletePost = async (post) => {
     await loadDiscussion()
   } catch (error) {
     alert(error.response?.data?.message || error.message || '刪除留言失敗')
+  }
+}
+
+const loadDeletedContent = async (post) => {
+  deletedContentLoadingId.value = post.id
+  try {
+    const { data } = await api.get(
+      `/api/courses/${courseId}/groups/${groupId}/discussion/${post.id}/deleted-content`,
+    )
+    deletedContents.value = { ...deletedContents.value, [post.id]: data.content }
+    return true
+  } catch (error) {
+    alert(error.response?.data?.message || error.message || '讀取已刪除留言失敗')
+    return false
+  } finally {
+    deletedContentLoadingId.value = null
+  }
+}
+
+const restorePost = async (post) => {
+  if (!confirm('確定要復原這則留言嗎？復原後留言及附件會重新顯示。')) return
+  try {
+    await api.post(
+      `/api/courses/${courseId}/groups/${groupId}/discussion/${post.id}/restore`,
+    )
+    const nextContents = { ...deletedContents.value }
+    delete nextContents[post.id]
+    deletedContents.value = nextContents
+    await loadDiscussion()
+  } catch (error) {
+    alert(error.response?.data?.message || error.message || '復原留言失敗')
   }
 }
 

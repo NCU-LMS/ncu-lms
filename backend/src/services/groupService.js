@@ -196,6 +196,64 @@ export const GroupService = {
     }
   },
 
+  async getDeletedGroupDiscussionPost(courseCode, groupId, postId, user) {
+    const courseId = await resolveCourseId(courseCode);
+    if (!/^\d+$/.test(String(groupId)) || !/^\d+$/.test(String(postId))) {
+      const error = new Error("找不到已刪除的討論留言");
+      error.code = "GROUP_POST_NOT_FOUND";
+      throw error;
+    }
+    await assertGroupAccess(courseId, groupId, user);
+    const isStaff = ["teacher", "ta"].includes(user.role);
+    const post = await GroupModel.getDeletedGroupDiscussionPost(groupId, postId);
+    if (!post) {
+      const error = new Error("找不到已刪除的討論留言");
+      error.code = "GROUP_POST_NOT_FOUND";
+      throw error;
+    }
+    if (!isStaff && post.studentId !== user.username) {
+      const error = new Error("只有留言作者或教師、助教能查看已刪除內容");
+      error.code = "GROUP_POST_FORBIDDEN";
+      throw error;
+    }
+    return {
+      content: post.content,
+      attachmentFileName: post.attachmentFileName,
+    };
+  },
+
+  async restoreGroupDiscussionPost(courseCode, groupId, postId, user) {
+    const courseId = await resolveCourseId(courseCode);
+    if (!/^\d+$/.test(String(groupId)) || !/^\d+$/.test(String(postId))) {
+      const error = new Error("找不到可復原的討論留言");
+      error.code = "GROUP_POST_NOT_FOUND";
+      throw error;
+    }
+    await assertGroupAccess(courseId, groupId, user);
+    const isStaff = ["teacher", "ta"].includes(user.role);
+    const post = await GroupModel.getDeletedGroupDiscussionPost(groupId, postId);
+    if (!post) {
+      const error = new Error("找不到可復原的討論留言");
+      error.code = "GROUP_POST_NOT_FOUND";
+      throw error;
+    }
+    if (!isStaff && post.studentId !== user.username) {
+      const error = new Error("只有留言作者或教師、助教能復原此留言");
+      error.code = "GROUP_POST_FORBIDDEN";
+      throw error;
+    }
+    if (!(await GroupModel.restoreGroupDiscussionPost(
+      groupId,
+      postId,
+      user.username,
+      isStaff,
+    ))) {
+      const error = new Error("此留言已復原");
+      error.code = "GROUP_POST_ALREADY_RESTORED";
+      throw error;
+    }
+  },
+
   async getGroupHomework(courseCode, groupId, hwId, user) {
     const courseId = await resolveCourseId(courseCode);
     if (!/^\d+$/.test(String(groupId)) || !/^\d+$/.test(String(hwId))) {

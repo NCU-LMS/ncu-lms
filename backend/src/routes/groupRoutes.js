@@ -12,6 +12,8 @@ router.get("/max-members", GroupController.getCourseMaxMembers);
 router.put("/max-members", requireRole("teacher", "ta"), GroupController.setCourseMaxMembers);
 router.get("/homeworks", GroupController.getGroupHomeworks);
 router.get("/:groupId/discussion", GroupController.getGroupDiscussion);
+router.get("/:groupId/discussion/:postId/deleted-content", GroupController.getDeletedGroupDiscussionPost);
+router.post("/:groupId/discussion/:postId/restore", GroupController.restoreGroupDiscussionPost);
 router.post(
   "/:groupId/discussion",
   GroupController.authorizeGroupDiscussion,
