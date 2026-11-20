@@ -187,6 +187,18 @@ export const HomeworkController = {
     }
   },
 
+  async returnSubmission(req, res) {
+    try {
+      const { submissionId } = req.params;
+      const { returnReason, makeupDeadline } = req.body;
+      await HomeworkService.returnSubmission(submissionId, returnReason, makeupDeadline, req.user?.username);
+      res.json({ message: "作業已成功退件！" });
+    } catch (error) {
+      console.error("退件失敗:", error);
+      res.status(500).json({ message: error.message || "退件失敗" });
+    }
+  },
+
   async getSubmissionHistory(req, res) {
     try {
       const { submissionId } = req.params;

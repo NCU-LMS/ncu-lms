@@ -52,6 +52,16 @@ const MIGRATIONS = [
   "ALTER TABLE homeworks ADD COLUMN is_group_homework TINYINT(1) NOT NULL DEFAULT 0",
   // homework_submissions：保留收回紀錄需要的旗標
   "ALTER TABLE homework_submissions ADD COLUMN is_submitted TINYINT(1) NOT NULL DEFAULT 1",
+  "ALTER TABLE homework_submissions ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'submitted'",
+  "ALTER TABLE homework_submissions ADD COLUMN return_reason TEXT NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN makeup_deadline DATETIME NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN returned_at DATETIME NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN resubmitted_at DATETIME NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN previous_score VARCHAR(10) NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN previous_feedback TEXT NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN previous_graded_details LONGTEXT NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN previous_answer_text TEXT NULL",
+  "ALTER TABLE homework_submissions ADD COLUMN previous_files_json LONGTEXT NULL",
   // accounts：強制變更密碼、頭貼、信箱（可為 NULL，不覆寫既有資料）
   "ALTER TABLE accounts ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0",
   "ALTER TABLE accounts ADD COLUMN avatar_url VARCHAR(500) NULL",
@@ -105,6 +115,55 @@ const MIGRATIONS = [
   "ALTER TABLE discussion_rooms ADD COLUMN created_by VARCHAR(64) NULL",
   // 公告實際發布者；舊公告維持 NULL，畫面仍顯示授課老師
   "ALTER TABLE announcements ADD COLUMN author_username VARCHAR(64) NULL",
+  `CREATE TABLE IF NOT EXISTS user_activity_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    course_code VARCHAR(50) NULL,
+    homework_id VARCHAR(50) NULL,
+    user_id VARCHAR(100) NULL,
+    user_name VARCHAR(100) NULL,
+    role VARCHAR(20) NULL,
+    event_type VARCHAR(50) NOT NULL,
+    page_url VARCHAR(500) NOT NULL,
+    target_element VARCHAR(255) NULL,
+    action_data JSON NULL,
+    ip_address VARCHAR(64) NULL,
+    user_agent VARCHAR(500) NULL,
+    client_timestamp DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_time (user_id, created_at),
+    INDEX idx_event_type (event_type),
+    INDEX idx_created_at (created_at),
+    INDEX idx_course_hw (course_code, homework_id, created_at)
+  )`,
+  "ALTER TABLE user_activity_logs ADD COLUMN course_code VARCHAR(50) NULL",
+  "ALTER TABLE user_activity_logs ADD COLUMN homework_id VARCHAR(50) NULL",
+  "ALTER TABLE user_activity_logs ADD INDEX idx_course_hw (course_code, homework_id, created_at)",
+  `CREATE TABLE IF NOT EXISTS course_activity_configs (
+    course_code VARCHAR(50) PRIMARY KEY,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    track_clicks TINYINT(1) NOT NULL DEFAULT 0,
+    track_file_uploads TINYINT(1) NOT NULL DEFAULT 0,
+    track_inputs TINYINT(1) NOT NULL DEFAULT 1,
+    track_copy_violations TINYINT(1) NOT NULL DEFAULT 0,
+    input_interval_seconds INT NOT NULL DEFAULT 30,
+    student_visible TINYINT(1) NOT NULL DEFAULT 0,
+    anomaly_detection_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    max_chars_per_second INT NOT NULL DEFAULT 15,
+    check_frequency_anomaly TINYINT(1) NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`,
+  "ALTER TABLE course_activity_configs ADD COLUMN input_interval_seconds INT NOT NULL DEFAULT 30",
+  "ALTER TABLE course_activity_configs ADD COLUMN anomaly_detection_enabled TINYINT(1) NOT NULL DEFAULT 1",
+  "ALTER TABLE course_activity_configs ADD COLUMN max_chars_per_second INT NOT NULL DEFAULT 15",
+  "ALTER TABLE course_activity_configs ADD COLUMN check_frequency_anomaly TINYINT(1) NOT NULL DEFAULT 1",
+  `CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT NOT NULL,
+    description VARCHAR(255) NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`,
+  `INSERT IGNORE INTO system_settings (setting_key, setting_value, description)
+   VALUES ('activity_tracker_config', '{"enabled":true,"trackClicks":true,"trackFileUploads":true,"trackPageViews":true,"trackInputs":true,"trackCopyViolations":true,"inputIntervalMinutes":2}', '全站網頁操作記錄動態配置')`,
 ];
 
 const IGNORABLE_CODES = new Set([

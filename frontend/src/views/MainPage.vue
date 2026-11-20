@@ -178,7 +178,7 @@ const logout = () => {
   localStorage.clear()
   // window.location.href = '/login'
   window.location.href = '/'
-  isLoggedIn = false
+  isLoggedIn.value = false
   email.value = ""
   password.value = ""
 }

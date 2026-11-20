@@ -6,6 +6,13 @@
         <div class="flex flex-wrap gap-2">
           <button
             type="button"
+            class="px-4 py-1.5 rounded text-sm font-bold border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 flex items-center gap-1 shadow-sm"
+            @click="showActivityModal = true"
+          >
+            作業追蹤設定
+          </button>
+          <button
+            type="button"
             class="px-4 py-1.5 rounded text-sm font-bold border border-[#337ab7] text-[#337ab7] hover:bg-blue-50"
             @click="router.push(`/course/${courseId}/homework/${hwId}/edit`)"
           >
@@ -92,9 +99,9 @@
       <table class="w-full text-left text-[15px]">
         <thead class="bg-gray-50 text-gray-700 border-b">
           <tr>
-            <th class="p-3 pl-5">學號</th>
+            <th class="p-3 pl-5">學號 / 姓名</th>
             <th class="p-3">繳交時間</th>
-            <th class="p-3">成績</th>
+            <th class="p-3">狀態 / 成績</th>
             <th class="p-3 pr-5">操作</th>
           </tr>
         </thead>
@@ -104,18 +111,59 @@
               {{ sub.studentName || '未命名' }}
               <span class="block text-xs font-normal text-gray-500">{{ sub.studentId }}</span>
             </td>
-            <td class="p-3 text-gray-500 text-sm">{{ sub.uploadedAt }}</td>
+            <td class="p-3 text-gray-500 text-sm">
+              {{ sub.uploadedAt }}
+              <span v-if="sub.resubmittedAt" class="block text-[11px] text-purple-700 font-medium">
+                補交：{{ formatDate(sub.resubmittedAt) }}
+              </span>
+            </td>
             <td class="p-3">
-              <span v-if="sub.score" class="font-bold text-green-600 text-lg">{{ sub.score }}</span>
-              <span v-else class="text-red-500 font-bold text-sm">未批改</span>
+              <div v-if="sub.status === 'returned'" class="space-y-0.5">
+                <span class="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2.5 py-0.5 rounded text-xs font-black border border-red-300">
+                  退件
+                </span>
+                <span v-if="sub.makeupDeadline" class="block text-[11px] text-gray-500">
+                  補繳至: {{ formatDate(sub.makeupDeadline) }}
+                </span>
+              </div>
+              <div v-else-if="sub.status === 'resubmitted'" class="space-y-0.5">
+                <div class="flex items-center gap-1.5">
+                  <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-black border border-purple-300">
+                    補交
+                  </span>
+                  <span v-if="sub.score" class="font-bold text-green-600 text-base">({{ sub.score }})</span>
+                  <span v-else class="text-orange-500 font-bold text-xs">待批改</span>
+                </div>
+              </div>
+              <div v-else-if="sub.score">
+                <span class="font-bold text-green-600 text-lg">{{ sub.score }}</span>
+              </div>
+              <div v-else>
+                <span class="text-red-500 font-bold text-sm">未批改</span>
+              </div>
             </td>
             <td class="p-3 pr-5">
               <div class="flex items-center gap-2">
                 <button
                   @click="router.push(`/course/${courseId}/homework/${hwId}/grade/${sub.id}`)"
-                  class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-1.5 text-sm font-bold rounded hover:bg-blue-100 transition-colors"
+                  class="border px-4 py-1.5 text-sm font-bold rounded transition-colors"
+                  :class="[
+                    sub.status === 'resubmitted' && !sub.score
+                      ? 'bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100'
+                      : sub.status === 'returned'
+                      ? 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
+                      : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                  ]"
                 >
-                  {{ sub.score ? '重新批改' : '批改' }}
+                  {{
+                    sub.status === 'resubmitted' && !sub.score
+                      ? '批改補交'
+                      : sub.status === 'returned'
+                      ? '查看退件'
+                      : sub.score
+                      ? '重新批改'
+                      : '批改'
+                  }}
                 </button>
                 <button
                   type="button"
@@ -192,8 +240,28 @@
         <p class="text-gray-700">評語：{{ item.payload.feedback }}</p>
       </div>
 
-      <div v-else-if="item.eventType === 'unsubmit'" class="text-red-500">
+      <div v-else-if="item.eventType === 'unsubmit'" class="text-red-500 font-bold">
         學生收回了此份作業。
+      </div>
+
+      <div v-else-if="item.eventType === 'return'" class="space-y-1 bg-red-50 p-2.5 rounded border border-red-200">
+        <p class="font-bold text-red-700">老師執行退件</p>
+        <p v-if="item.payload.returnReason" class="text-gray-800 font-medium">退件原因：{{ item.payload.returnReason }}</p>
+        <p v-if="item.payload.makeupDeadline" class="text-xs text-red-600 font-bold">補繳截止時間：{{ formatDate(item.payload.makeupDeadline) }}</p>
+        <p v-if="item.payload.previousScore" class="text-xs text-gray-500">退件前評分：{{ item.payload.previousScore }}</p>
+      </div>
+
+      <div v-else-if="item.eventType === 'resubmit'" class="space-y-2 bg-purple-50 p-2.5 rounded border border-purple-200">
+        <p class="font-bold text-purple-700">學生補交內容：</p>
+        <div
+          v-for="(block, bi) in submissionBlocks(item.payload)"
+          :key="bi"
+          class="bg-white p-2 border rounded text-gray-700"
+        >
+          <p class="font-bold text-gray-800">第 {{ bi + 1 }} 題</p>
+          <p class="whitespace-pre-line">{{ block.text || '（無文字）' }}</p>
+          <p v-if="block.fileName" class="text-green-700">附件：{{ block.fileName }}</p>
+        </div>
       </div>
 
       <pre v-else class="text-xs whitespace-pre-wrap break-words text-gray-500">{{ item.payload }}</pre>
@@ -203,6 +271,12 @@
         </div>
       </div>
     </div>
+    <CourseActivityModal
+      :is-open="showActivityModal"
+      :course-code="courseId"
+      :homework-id="hwId"
+      @close="showActivityModal = false"
+    />
   </div>
 </template>
 
@@ -211,6 +285,9 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/client.js'
 import { downloadFile, downloadApi } from '@/utils/files.js'
+import CourseActivityModal from '@/components/course/CourseActivityModal.vue'
+
+const showActivityModal = ref(false)
 
 const route = useRoute()
 const router = useRouter()
@@ -291,7 +368,9 @@ const downloadAll = async (mode) => {
 }
 
 const eventTypeLabel = (t) => ({
-  submit: '學生送出',
+  submit: '學生首次送出',
+  resubmit: '學生補交送出',
+  return: '老師退件',
   unsubmit: '學生收回',
   teacher_grade: '教師評分',
   ai_suggestion: 'AI 建議',

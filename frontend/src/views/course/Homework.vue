@@ -6,13 +6,27 @@
       </h2>
     </div>
 
-    <button
-      v-if="['teacher', 'ta'].includes(userRole)"
-      @click="goToCreateHomework"
-      class="bg-[#337ab7] text-white px-4 py-1.5 rounded text-sm font-bold tracking-wide hover:bg-[#285e8e] shadow-sm transition-colors flex items-center gap-1 mb-4"
-    >
-      ＋ 新增作業
-    </button>
+    <div v-if="['teacher', 'ta'].includes(userRole)" class="flex gap-2 mb-4 flex-wrap">
+      <button
+        @click="goToCreateHomework"
+        class="bg-[#337ab7] text-white px-4 py-1.5 rounded text-sm font-bold tracking-wide hover:bg-[#285e8e] shadow-sm transition-colors flex items-center gap-1"
+      >
+        ＋ 新增作業
+      </button>
+      <button
+        type="button"
+        @click="showActivityModal = true"
+        class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-1.5 rounded text-sm font-bold tracking-wide hover:bg-indigo-100 shadow-sm transition-colors flex items-center gap-1"
+      >
+        作業操作記錄與追蹤設定
+      </button>
+    </div>
+
+    <CourseActivityModal
+      :is-open="showActivityModal"
+      :course-code="courseId"
+      @close="showActivityModal = false"
+    />
 
     <div class="bg-white border rounded shadow-sm overflow-hidden">
       <div class="flex bg-gray-100 text-sm font-bold text-gray-700 p-3 border-b">
@@ -35,7 +49,21 @@
           <div class="w-40 text-center text-gray-500 text-sm">{{ hw.deadlineText }}</div>
           <div class="w-32 text-center text-sm">
             <span
-              :class="hw.isGraded ? 'text-green-600' : hw.isSubmitted ? 'text-blue-600' : 'text-red-500'"
+              v-if="hw.isReturned"
+              class="text-red-600 font-bold bg-red-50 border border-red-200 px-2 py-0.5 rounded text-xs inline-block"
+              :title="hw.returnReason ? `退件原因：${hw.returnReason}` : '作業已被退件，需補交'"
+            >
+              已退件
+            </span>
+            <span
+              v-else-if="hw.isResubmitted"
+              class="text-purple-700 font-bold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded text-xs inline-block"
+            >
+              已補交
+            </span>
+            <span
+              v-else
+              :class="hw.isGraded ? 'text-green-600 font-bold' : hw.isSubmitted ? 'text-blue-600' : 'text-orange-500 font-bold'"
             >
               {{ hw.statusText }}
             </span>
@@ -56,6 +84,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '@/api/client.js'
 import { getRoleFromToken } from '@/utils/auth.js'
+import CourseActivityModal from '@/components/course/CourseActivityModal.vue'
+
+const showActivityModal = ref(false)
 
 const router = useRouter()
 const route = useRoute()
@@ -75,21 +106,41 @@ const loadHomeworkList = async () => {
   isLoading.value = true
   try {
     const { data: result } = await api.get(`/api/courses/${courseId}/homeworks`)
-    homeworkList.value = result.map((item) => ({
-      ...item,
-      deadlineText: formatDate(item.deadline),
-      isSubmitted: Boolean(item.submissionId),
-      isGraded: Boolean(item.score),
-      scoreText: item.score || '-',
-      statusText:
-        ['teacher', 'ta'].includes(userRole.value)
-          ? `已繳交 ${item.submitCount || 0} / 已批改 ${item.gradedCount || 0}`
-          : item.score
-            ? '已批改'
-            : item.submissionId
-              ? '待批改'
-              : '未繳交',
-    }))
+    homeworkList.value = result.map((item) => {
+      const isReturned = item.status === 'returned'
+      const isResubmitted = item.status === 'resubmitted'
+      const isGraded = Boolean(item.score) || item.status === 'graded'
+      const isSubmitted = Boolean(item.submissionId)
+
+      let deadlineDisplay = formatDate(item.deadline)
+      if (isReturned && item.makeupDeadline) {
+        deadlineDisplay = `${formatDate(item.makeupDeadline)} (補繳)`
+      }
+
+      let statusText = '未繳交'
+      if (['teacher', 'ta'].includes(userRole.value)) {
+        statusText = `已繳交 ${item.submitCount || 0} / 已批改 ${item.gradedCount || 0}`
+      } else if (isReturned) {
+        statusText = '已退件'
+      } else if (isResubmitted) {
+        statusText = '已補交'
+      } else if (isGraded) {
+        statusText = '已批改'
+      } else if (isSubmitted) {
+        statusText = '待批改'
+      }
+
+      return {
+        ...item,
+        deadlineText: deadlineDisplay,
+        isSubmitted,
+        isGraded,
+        isReturned,
+        isResubmitted,
+        scoreText: item.score || '-',
+        statusText,
+      }
+    })
   } catch (error) {
     alert(error.response?.data?.message || error.message || '讀取作業失敗')
   } finally {

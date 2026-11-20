@@ -28,6 +28,7 @@ router.get("/homeworks/:hwId/submissions", staff, HomeworkController.getSubmissi
 router.get("/submissions/:submissionId", staff, HomeworkController.getSubmissionDetail);
 router.get("/submissions/:submissionId/pdf", staff, HomeworkController.exportSubmissionPdf);
 router.post("/submissions/:submissionId/grade", staff, HomeworkController.gradeSubmission);
+router.post("/submissions/:submissionId/return", staff, HomeworkController.returnSubmission);
 router.get("/submissions/:submissionId/history", staff, HomeworkController.getSubmissionHistory);
 
 export default router;

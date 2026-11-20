@@ -97,10 +97,22 @@ export const HomeworkService = {
     if (role === 'student' && userId) {
       for (let hw of homeworks) {
         const sub = await HomeworkModel.getStudentSubmission(hw.id, userId);
-        if (sub && sub.is_submitted) {
-          hw.submissionId = sub.id;
-          hw.score = sub.score;
-          hw.feedback = sub.feedback;
+        if (sub) {
+          if (sub.status === 'returned') {
+            hw.submissionId = sub.id;
+            hw.status = 'returned';
+            hw.score = sub.score;
+            hw.feedback = sub.feedback;
+            hw.returnReason = sub.return_reason;
+            hw.makeupDeadline = sub.makeup_deadline;
+          } else if (sub.is_submitted) {
+            hw.submissionId = sub.id;
+            hw.status = sub.status || 'submitted';
+            hw.score = sub.score;
+            hw.feedback = sub.feedback;
+            hw.returnReason = sub.return_reason;
+            hw.makeupDeadline = sub.makeup_deadline;
+          }
         }
       }
     } else if (role === "teacher" || role === "ta") {
@@ -144,14 +156,26 @@ export const HomeworkService = {
   // 學生繳交作業
   async submitHomework(hwId, studentId, answerText, files = [], removeFileIndexes = []) {
     const homework = await HomeworkModel.getHomeworkById(hwId);
-    if (homework && homework.deadline) {
-      if (new Date() > new Date(homework.deadline)) {
-        throw new Error("已超過繳交截止時間，無法繳交作業");
+    const existing = await HomeworkModel.getStudentSubmission(hwId, studentId);
+
+    if (existing && existing.is_submitted && (existing.status === "graded" || (existing.score !== null && existing.status !== "returned"))) {
+      throw new Error("此作業已被老師完成批改，內容已鎖定，無法再行修改");
+    }
+
+    if (existing && existing.status === "returned") {
+      const effectiveDeadline = existing.makeup_deadline || homework?.deadline;
+      if (effectiveDeadline && new Date() > new Date(effectiveDeadline)) {
+        throw new Error("已超過補繳截止時間，無法繳交作業");
+      }
+    } else {
+      if (homework && homework.deadline) {
+        if (new Date() > new Date(homework.deadline)) {
+          throw new Error("已超過繳交截止時間，無法繳交作業");
+        }
       }
     }
 
     const questions = await HomeworkModel.getQuestionsByHomework(hwId);
-    const existing = await HomeworkModel.getStudentSubmission(hwId, studentId);
     const storedFiles = storedFilesFromSubmission(existing, questions.length);
     const removeSet = new Set(
       (Array.isArray(removeFileIndexes) ? removeFileIndexes : [])
@@ -185,6 +209,7 @@ export const HomeworkService = {
       throw new Error("不能繳交空內容");
     }
 
+    const isResubmit = existing && existing.status === "returned";
     const firstFile = storedFiles.find(Boolean) || null;
     const subId = await HomeworkModel.saveSubmissionPayload(
       hwId,
@@ -195,13 +220,14 @@ export const HomeworkService = {
       firstFile?.file_path || null,
     );
 
-    await appendSubmissionHistory(subId, "submit", {
+    await appendSubmissionHistory(subId, isResubmit ? "resubmit" : "submit", {
       studentId,
       hasFile,
       fileName: firstFile?.file_name || null,
       answerText: answerText || "",
       answers: parseJsonArray(answerText),
       files: storedFiles,
+      isResubmit: Boolean(isResubmit),
     });
 
     return subId;
@@ -276,16 +302,53 @@ export const HomeworkService = {
   // 學生收回作業：保留原本作答與檔案，僅標記為未繳交
   async unsubmitHomework(hwId, studentId) {
     const homework = await HomeworkModel.getHomeworkById(hwId);
+    const sub = await HomeworkModel.getStudentSubmission(hwId, studentId);
+
+    if (sub && (sub.status === "graded" || (sub.score !== null && sub.status !== "returned"))) {
+      throw new Error("此作業已被老師批改，內容已鎖定，無法收回作業");
+    }
+    if (sub && sub.status === "returned") {
+      throw new Error("作業已被退件，請直接進行補交作業，無需收回");
+    }
+
     if (homework && homework.deadline) {
       if (new Date() > new Date(homework.deadline)) {
         throw new Error("已超過繳交截止時間，無法收回作業");
       }
     }
 
-    const sub = await HomeworkModel.getStudentSubmission(hwId, studentId);
     if (sub) {
       await appendSubmissionHistory(sub.id, "unsubmit", { studentId });
       await HomeworkModel.markSubmissionUnsubmitted(hwId, studentId);
+    }
+  },
+
+  async returnSubmission(submissionId, returnReason, makeupDeadline, actorUsername = null) {
+    const submission = await HomeworkModel.getSubmissionDetail(submissionId);
+    if (!submission) throw new Error("找不到繳交紀錄");
+
+    await HomeworkModel.returnSubmission(submissionId, returnReason, makeupDeadline);
+
+    await appendSubmissionHistory(submissionId, "return", {
+      actorUsername,
+      returnReason: returnReason || "",
+      makeupDeadline: makeupDeadline || null,
+      previousScore: submission.score || submission.previousScore || null,
+      previousFeedback: submission.feedback || submission.previousFeedback || null,
+    });
+
+    if (submission.studentId) {
+      try {
+        await NotificationService.createNotification({
+          userId: submission.studentId,
+          title: `作業退件通知：${submission.homeworkTitle || "作業"}`,
+          content: `您的作業已被授課老師退件。退件原因：${returnReason || "無"}。${makeupDeadline ? `補繳截止時間：${new Date(makeupDeadline).toLocaleString()}` : ""}`,
+          type: "homework_return",
+          refId: String(submission.homework_id),
+        });
+      } catch (notifErr) {
+        console.warn("發送退件通知失敗:", notifErr);
+      }
     }
   },
 
