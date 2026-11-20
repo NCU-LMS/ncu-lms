@@ -3,6 +3,9 @@ import fs from "node:fs/promises";
 
 function handleError(res, error, fallbackMessage) {
   const message = error.message || "";
+  if (error.status === 400) {
+    return res.status(400).json({ message });
+  }
   if (message === "課程不存在" || message === "小組不存在") {
     return res.status(404).json({ message });
   }

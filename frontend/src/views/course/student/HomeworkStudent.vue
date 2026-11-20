@@ -455,7 +455,8 @@ const loadData = async () => {
       deadlineRaw: hw.deadline || null,
       deadlineText: hw.deadline ? new Date(hw.deadline).toLocaleString() : '-',
       isSubmitted: subIsSubmitted,
-      isGraded: Boolean(current?.score),
+      // 老師可能只寫評語沒給分，以批改時間判斷是否已批改
+      isGraded: Boolean(mySub?.graded_at) || Boolean(current?.score),
       score: current?.score || null,
       feedback: current?.feedback || '',
       submittedFileName: mySub?.file_name || null,
@@ -546,6 +547,8 @@ const submitHomework = async () => {
     await loadData()
   } catch (error) {
     alert(error.response?.data?.message || error.message)
+    // 頁面開著期間老師可能已經批改，重新載入讓畫面顯示成績、拿掉收回按鈕
+    await loadData()
   }
 }
 
@@ -585,6 +588,8 @@ const unsubmitHomework = async () => {
     await loadData()
   } catch (error) {
     alert(error.response?.data?.message || error.message)
+    // 頁面開著期間老師可能已經批改，重新載入讓畫面顯示成績、拿掉收回按鈕
+    await loadData()
   }
 }
 

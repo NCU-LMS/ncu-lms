@@ -166,7 +166,7 @@ export const HomeworkModel = {
     const params = groupId === null ? [hwId, studentId] : [hwId, groupId];
     const [rows] = await pool.execute(
       `SELECT id, answer_text, file_name, file_path, files_json, score, feedback,
-              graded_details, is_submitted
+              graded_details, graded_at, is_submitted
        FROM homework_submissions
        WHERE homework_id = ? AND ${ownerClause}`,
       params,
@@ -214,7 +214,30 @@ export const HomeworkModel = {
     return rows[0]?.id;
   },
 
-  async saveSubmissionPayload(hwId, studentId, answerText, filesJson, legacyFileName, legacyFilePath, groupId = null) {
+  /** 在 transaction 中鎖住學生或小組這份繳交，回傳是否已批改。 */
+  async lockSubmissionForUpdate(hwId, studentId, conn, groupId = null) {
+    const ownerClause = groupId === null
+      ? "student_id = ? AND group_id IS NULL"
+      : "group_id = ?";
+    const params = groupId === null ? [hwId, studentId] : [hwId, groupId];
+    const [rows] = await conn.execute(
+      `SELECT graded_at FROM homework_submissions
+       WHERE homework_id = ? AND ${ownerClause} FOR UPDATE`,
+      params,
+    );
+    return { graded: rows[0]?.graded_at != null };
+  },
+
+  async saveSubmissionPayload(
+    hwId,
+    studentId,
+    answerText,
+    filesJson,
+    legacyFileName,
+    legacyFilePath,
+    groupId = null,
+    conn = pool,
+  ) {
     const ownerStudentId = groupId === null ? studentId : null;
     const sql = `
       INSERT INTO homework_submissions
@@ -229,7 +252,7 @@ export const HomeworkModel = {
         is_submitted = 1,
         submitted_at = CURRENT_TIMESTAMP
     `;
-    await pool.execute(sql, [
+    await conn.execute(sql, [
       hwId,
       ownerStudentId,
       groupId,
@@ -238,24 +261,29 @@ export const HomeworkModel = {
       legacyFilePath,
       filesJson,
     ]);
-    const [rows] = groupId === null
-      ? await pool.execute(
-        "SELECT id FROM homework_submissions WHERE homework_id = ? AND student_id = ? AND group_id IS NULL",
-        [hwId, studentId],
-      )
-      : await pool.execute(
-        "SELECT id FROM homework_submissions WHERE homework_id = ? AND group_id = ?",
-        [hwId, groupId],
-      );
+    const [rows] = await conn.execute(
+      `SELECT id FROM homework_submissions
+       WHERE homework_id = ? AND ${groupId === null ? "student_id = ? AND group_id IS NULL" : "group_id = ?"}`,
+      groupId === null ? [hwId, studentId] : [hwId, groupId],
+    );
     return rows[0]?.id;
   },
 
-  /** 學生收回作業：保留作答內容與檔案，僅標記為未繳交 */
+  /**
+   * 學生收回作業：保留作答內容與檔案，僅標記為未繳交。
+   * 條件寫在 WHERE 裡，老師在檢查之後才批改也不會被收回；回傳是否真的收回。
+   */
   async markSubmissionUnsubmitted(hwId, studentId, groupId = null) {
-    const sql = groupId === null
-      ? "UPDATE homework_submissions SET is_submitted = 0 WHERE homework_id = ? AND student_id = ? AND group_id IS NULL"
-      : "UPDATE homework_submissions SET is_submitted = 0 WHERE homework_id = ? AND group_id = ?";
-    await pool.execute(sql, groupId === null ? [hwId, studentId] : [hwId, groupId]);
+    const ownerClause = groupId === null
+      ? "student_id = ? AND group_id IS NULL"
+      : "group_id = ?";
+    const params = groupId === null ? [hwId, studentId] : [hwId, groupId];
+    const [result] = await pool.execute(
+      `UPDATE homework_submissions SET is_submitted = 0
+       WHERE homework_id = ? AND ${ownerClause} AND is_submitted = 1 AND graded_at IS NULL`,
+      params,
+    );
+    return result.affectedRows > 0;
   },
 
   async deleteSubmission(hwId, studentId, groupId = null) {
