@@ -162,7 +162,17 @@ export const HomeworkModel = {
         score,
         feedback,
         graded_details,
-        is_submitted
+        is_submitted,
+        status,
+        return_reason,
+        makeup_deadline,
+        returned_at,
+        resubmitted_at,
+        previous_score,
+        previous_feedback,
+        previous_graded_details,
+        previous_answer_text,
+        previous_files_json
       FROM homework_submissions
       WHERE homework_id = ? AND student_id = ?
       `,
@@ -212,16 +222,28 @@ export const HomeworkModel = {
   },
 
   async saveSubmissionPayload(hwId, studentId, answerText, filesJson, legacyFileName, legacyFilePath) {
+    const [existingRows] = await pool.execute(
+      "SELECT id, status, answer_text, files_json FROM homework_submissions WHERE homework_id = ? AND student_id = ?",
+      [hwId, studentId]
+    );
+    const existing = existingRows[0];
+    const isReturned = existing?.status === "returned";
+    const nextStatus = isReturned ? "resubmitted" : "submitted";
+
     const sql = `
       INSERT INTO homework_submissions
-        (homework_id, student_id, answer_text, file_name, file_path, files_json, is_submitted)
-      VALUES (?, ?, ?, ?, ?, ?, 1)
+        (homework_id, student_id, answer_text, file_name, file_path, files_json, is_submitted, status, resubmitted_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ${isReturned ? "CURRENT_TIMESTAMP" : "NULL"})
       ON DUPLICATE KEY UPDATE
+        previous_answer_text = IF(status = 'returned', answer_text, previous_answer_text),
+        previous_files_json = IF(status = 'returned', files_json, previous_files_json),
         answer_text = VALUES(answer_text),
         file_name = VALUES(file_name),
         file_path = VALUES(file_path),
         files_json = VALUES(files_json),
         is_submitted = 1,
+        status = VALUES(status),
+        resubmitted_at = IF(status = 'returned', CURRENT_TIMESTAMP, resubmitted_at),
         submitted_at = CURRENT_TIMESTAMP
     `;
     await pool.execute(sql, [
@@ -231,6 +253,7 @@ export const HomeworkModel = {
       legacyFileName,
       legacyFilePath,
       filesJson,
+      nextStatus,
     ]);
     const [rows] = await pool.execute(
       "SELECT id FROM homework_submissions WHERE homework_id = ? AND student_id = ?",
@@ -242,7 +265,7 @@ export const HomeworkModel = {
   /** 學生收回作業：保留作答內容與檔案，僅標記為未繳交 */
   async markSubmissionUnsubmitted(hwId, studentId) {
     await pool.execute(
-      "UPDATE homework_submissions SET is_submitted = 0 WHERE homework_id = ? AND student_id = ?",
+      "UPDATE homework_submissions SET is_submitted = 0, status = 'unsubmitted' WHERE homework_id = ? AND student_id = ?",
       [hwId, studentId]
     );
   },
@@ -254,13 +277,41 @@ export const HomeworkModel = {
     );
   },
 
+  async returnSubmission(submissionId, returnReason, makeupDeadline) {
+    const [currRows] = await pool.execute(
+      "SELECT * FROM homework_submissions WHERE id = ?",
+      [submissionId]
+    );
+    const curr = currRows[0];
+    if (!curr) throw new Error("找不到作業繳交紀錄");
+
+    const sql = `
+      UPDATE homework_submissions
+      SET
+        status = 'returned',
+        return_reason = ?,
+        makeup_deadline = ?,
+        returned_at = CURRENT_TIMESTAMP,
+        previous_score = COALESCE(score, previous_score),
+        previous_feedback = COALESCE(feedback, previous_feedback),
+        previous_graded_details = COALESCE(graded_details, previous_graded_details),
+        previous_answer_text = COALESCE(answer_text, previous_answer_text),
+        previous_files_json = COALESCE(files_json, previous_files_json),
+        score = NULL,
+        feedback = NULL,
+        graded_details = NULL,
+        is_submitted = 1
+      WHERE id = ?
+    `;
+    await pool.execute(sql, [
+      returnReason || null,
+      makeupDeadline ? new Date(makeupDeadline) : null,
+      submissionId,
+    ]);
+  },
+
   // 老師端：取得單一作業的所有繳交清單
   async getSubmissionsList(hwId) {
-    // 舊查詢（保留參考）：包含 ai_estimated_score、ai_estimated_at 等欄位
-    // const [rows] = await pool.execute(
-    //   "SELECT id, student_id as studentId, submitted_at as submittedAt, score, feedback, ai_estimated_score as aiEstimatedScore, ai_estimated_at as aiEstimatedAt FROM homework_submissions WHERE homework_id = ?",
-    //   [hwId]
-    // );
     const [rows] = await pool.execute(
       `
       SELECT
@@ -273,7 +324,16 @@ export const HomeworkModel = {
         hs.answer_text as answerText,
         hs.file_name as fileName,
         hs.file_path as filePath,
-        hs.files_json as filesJson
+        hs.files_json as filesJson,
+        hs.status,
+        hs.return_reason as returnReason,
+        hs.makeup_deadline as makeupDeadline,
+        hs.returned_at as returnedAt,
+        hs.resubmitted_at as resubmittedAt,
+        hs.previous_score as previousScore,
+        hs.previous_feedback as previousFeedback,
+        hs.previous_answer_text as previousAnswerText,
+        hs.previous_files_json as previousFilesJson
       FROM homework_submissions hs
       LEFT JOIN students s ON s.student_id = hs.student_id
       WHERE hs.homework_id = ? AND hs.is_submitted = 1
@@ -287,7 +347,12 @@ export const HomeworkModel = {
   async getSubmissionDetail(submissionId) {
     const [rows] = await pool.execute(
       `SELECT hs.*, hs.student_id as studentId, s.name as studentName, hs.submitted_at as submittedAt, hs.answer_text as answerText,
-              h.title as homeworkTitle, h.course_id as courseCode
+              hs.status, hs.return_reason as returnReason, hs.makeup_deadline as makeupDeadline,
+              hs.returned_at as returnedAt, hs.resubmitted_at as resubmittedAt,
+              hs.previous_score as previousScore, hs.previous_feedback as previousFeedback,
+              hs.previous_graded_details as previousGradedDetails,
+              hs.previous_answer_text as previousAnswerText, hs.previous_files_json as previousFilesJson,
+              h.title as homeworkTitle, h.course_id as courseCode, h.deadline as homeworkDeadline
        FROM homework_submissions hs
        JOIN homeworks h ON h.id = hs.homework_id
        LEFT JOIN students s ON s.student_id = hs.student_id
@@ -300,7 +365,7 @@ export const HomeworkModel = {
   // 老師批改評分寫入
   async updateGrade(submissionId, score, feedback, gradedDetails) {
     await pool.execute(
-      "UPDATE homework_submissions SET score = ?, feedback = ?, graded_details = ?, graded_at = CURRENT_TIMESTAMP WHERE id = ?",
+      "UPDATE homework_submissions SET score = ?, feedback = ?, graded_details = ?, graded_at = CURRENT_TIMESTAMP, status = 'graded' WHERE id = ?",
       [
         score ?? null,
         feedback ?? null,

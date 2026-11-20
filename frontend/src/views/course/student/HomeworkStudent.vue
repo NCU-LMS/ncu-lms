@@ -2,17 +2,58 @@
   <div class="flex flex-col gap-6">
     <div class="bg-white border rounded p-5 shadow-sm border-l-4 border-l-[#337ab7]">
       <h2 class="text-xl font-bold text-gray-800 mb-2">{{ homeworkData.title }}</h2>
-      <div class="text-[15px] text-gray-600 flex flex-wrap gap-6">
+      <div class="text-[15px] text-gray-600 flex flex-wrap gap-6 items-center">
         <span>截止日期：{{ homeworkData.deadlineText }}</span>
         <span>
           狀態：
-          <span :class="homeworkData.isGraded ? 'text-green-600 font-bold' : homeworkData.isSubmitted ? 'text-blue-600 font-bold' : 'text-orange-500 font-bold'">
-            {{ homeworkData.isGraded ? '已批改' : homeworkData.isSubmitted ? '已繳交' : '未繳交' }}
+          <span v-if="homeworkData.status === 'returned'" class="text-red-600 font-bold bg-red-50 border border-red-200 px-2 py-0.5 rounded text-sm">
+            已退件（需補交）
+          </span>
+          <span v-else-if="homeworkData.status === 'resubmitted'" class="text-purple-700 font-bold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded text-sm">
+            已補交（待批改）
+          </span>
+          <span v-else-if="homeworkData.isGraded" class="text-green-600 font-bold">
+            已批改
+          </span>
+          <span v-else-if="homeworkData.isSubmitted" class="text-blue-600 font-bold">
+            已繳交
+          </span>
+          <span v-else class="text-orange-500 font-bold">
+            未繳交
           </span>
         </span>
       </div>
+
+      <div
+        v-if="homeworkData.status === 'returned'"
+        class="mt-3 bg-red-50 border border-red-300 rounded p-4 text-red-950 space-y-1.5 shadow-xs"
+      >
+        <div class="font-bold flex items-center gap-1.5 text-sm text-red-700">
+          您的作業已被授課老師退件，請依指示修改內容後進行「補交」！
+        </div>
+        <p v-if="homeworkData.returnReason" class="text-xs text-gray-800">
+          <strong>退件原因：</strong>{{ homeworkData.returnReason }}
+        </p>
+        <p v-if="homeworkData.makeupDeadlineText" class="text-xs text-red-700 font-bold">
+          補繳截止時間：{{ homeworkData.makeupDeadlineText }}
+        </p>
+        <p v-else class="text-xs text-gray-600">
+          補繳截止時間：遵循原作業截止日（{{ homeworkData.deadlineText }}）
+        </p>
+        <p v-if="isPastDeadline" class="text-xs text-red-600 font-black">
+          （已超過補繳截止時間，無法再送出補交）
+        </p>
+      </div>
+
       <p
-        v-if="isPastDeadline && !homeworkData.isGraded && !homeworkData.isSubmitted"
+        v-else-if="homeworkData.isGraded"
+        class="mt-3 text-xs text-green-800 bg-green-50 border border-green-200 rounded px-3 py-2 font-medium"
+      >
+        此作業已被老師完成批改，內容已全面鎖定，無法收回或再行修改。
+      </p>
+
+      <p
+        v-else-if="isPastDeadline && !homeworkData.isGraded && !homeworkData.isSubmitted && homeworkData.status !== 'returned'"
         class="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2"
       >
         已超過繳交截止時間，無法再送出作業。
@@ -121,12 +162,19 @@
           </div>
 
           <div v-if="q.answerFormat === 'text'">
-            <label class="block text-xs font-bold text-gray-500 mb-1">文字作答</label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-bold text-gray-500">文字作答</label>
+              <span class="text-[11px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                本題禁止複製與貼上，請手動打字
+              </span>
+            </div>
             <textarea
               v-model="answers[index]"
+              v-no-copy
+              :data-track="'作業第' + (index + 1) + '題作答框'"
               rows="4"
               :disabled="answerInputsDisabled"
-              placeholder="請在此輸入答案..."
+              placeholder="請在此手動輸入答案（禁止複製貼上）..."
               class="w-full bg-white border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:bg-[#eef3fe] transition-colors resize-y"
             ></textarea>
           </div>
@@ -165,28 +213,130 @@
         </div>
       </div>
 
-      <div v-if="!homeworkData.isGraded" class="bg-gray-50 px-5 py-4 border-t flex flex-wrap justify-end items-center gap-3">
-        <span v-if="homeworkData.isSubmitted && isPastDeadline" class="text-xs text-red-600">
-          已超過繳交截止時間，無法收回作業
-        </span>
-        <button
-          v-if="homeworkData.isSubmitted"
-          type="button"
-          :disabled="isPastDeadline"
-          class="bg-red-500 text-white px-8 py-2.5 rounded text-[16px] hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          @click="unsubmitHomework"
-        >
-          收回作業
-        </button>
-        <button
-          v-else
-          type="button"
-          :disabled="isPastDeadline"
-          class="bg-[#337ab7] text-white px-8 py-2.5 rounded text-[16px] hover:bg-[#285e8e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          @click="submitHomework"
-        >
-          確認送出作業
-        </button>
+      <div v-if="!homeworkData.isGraded || homeworkData.status === 'returned'" class="bg-gray-50 px-5 py-4 border-t flex flex-wrap justify-end items-center gap-3">
+        <template v-if="homeworkData.status === 'returned'">
+          <span v-if="isPastDeadline" class="text-xs text-red-600 font-bold">
+            已超過補繳截止時間，無法補交作業
+          </span>
+          <button
+            type="button"
+            :disabled="isPastDeadline"
+            class="bg-purple-600 text-white px-8 py-2.5 rounded text-[16px] hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-sm"
+            @click="submitHomework"
+          >
+            確認補交作業
+          </button>
+        </template>
+
+        <template v-else-if="homeworkData.status === 'resubmitted'">
+          <span class="text-xs text-purple-700 font-bold">
+            已成功補交作業，內容已鎖定，等待授課老師重新批改中
+          </span>
+        </template>
+
+        <template v-else-if="!homeworkData.isGraded">
+          <span v-if="homeworkData.isSubmitted && isPastDeadline" class="text-xs text-red-600">
+            已超過繳交截止時間，無法收回作業
+          </span>
+          <button
+            v-if="homeworkData.isSubmitted"
+            type="button"
+            :disabled="isPastDeadline"
+            class="bg-red-500 text-white px-8 py-2.5 rounded text-[16px] hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="unsubmitHomework"
+          >
+            收回作業
+          </button>
+          <button
+            v-else
+            type="button"
+            :disabled="isPastDeadline"
+            class="bg-[#337ab7] text-white px-8 py-2.5 rounded text-[16px] hover:bg-[#285e8e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="submitHomework"
+          >
+            確認送出作業
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <div v-if="studentTrackingEnabled" class="bg-white border rounded shadow-sm overflow-hidden">
+      <div
+        class="bg-slate-100 px-5 py-3 flex justify-between items-center flex-wrap gap-2 cursor-pointer select-none hover:bg-slate-200/70 transition-colors"
+        @click="isLogsExpanded = !isLogsExpanded"
+      >
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500 font-bold transition-transform duration-200" :class="{ 'rotate-90': isLogsExpanded }">
+            ▶
+          </span>
+          <span class="font-bold text-gray-700 text-sm">我的作業作答歷程與操作記錄</span>
+          <span class="text-xs text-gray-500">({{ isLogsExpanded ? '點擊收起' : '點擊展開' }})</span>
+          <span class="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded">系統即時記錄中</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="isLogsExpanded"
+            type="button"
+            class="text-xs text-blue-600 hover:underline font-bold"
+            @click.stop="fetchMyActivityLogs"
+          >
+            重新整理
+          </button>
+          <span class="text-xs text-gray-600 font-medium">
+            {{ isLogsExpanded ? '收起 ▲' : '展開 ▼' }}
+          </span>
+        </div>
+      </div>
+
+      <div v-show="isLogsExpanded" class="p-5 border-t border-gray-200">
+        <p class="text-xs text-gray-500 mb-3">
+          授課老師已開放作業歷程檢視。以下為您在此份作業的打字快照、檔案上傳與操作紀錄（僅您與授課老師可見）。
+        </p>
+
+        <div v-if="myLogs.length === 0" class="text-center py-6 text-gray-400 text-xs">
+          尚無操作紀錄（開始打字或上傳檔案後將自動排程記錄）
+        </div>
+
+        <div v-else class="overflow-x-auto border rounded">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-gray-50 text-gray-600 border-b">
+              <tr>
+                <th class="p-2.5">記錄時間</th>
+                <th class="p-2.5">項目</th>
+                <th class="p-2.5">作答進度 / 說明</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr
+                v-for="log in myLogs"
+                :key="log.id"
+                :class="[log.is_anomaly ? 'bg-red-50/70 border-l-4 border-l-red-500' : 'hover:bg-gray-50']"
+              >
+                <td class="p-2.5 text-gray-500 whitespace-nowrap font-mono">{{ formatMyLogDate(log.client_timestamp || log.created_at) }}</td>
+                <td class="p-2.5 whitespace-nowrap font-bold text-gray-700">
+                  <span v-if="log.is_anomaly" class="px-2 py-0.5 rounded text-[11px] bg-red-600 text-white font-bold shadow-sm">
+                    {{ getMyEventLabel(log.event_type) }}
+                  </span>
+                  <span v-else :class="getMyBadgeClass(log.event_type)" class="px-2 py-0.5 rounded text-[11px]">
+                    {{ getMyEventLabel(log.event_type) }}
+                  </span>
+                </td>
+                <td class="p-2.5 text-gray-700">
+                  <div :class="{'text-red-900 font-medium': log.is_anomaly}">{{ getMyActionDetail(log) }}</div>
+                  <div v-if="log.is_anomaly && log.anomaly_reasons?.length" class="mt-1 flex flex-wrap gap-1">
+                    <span
+                      v-for="(reason, rIdx) in log.anomaly_reasons"
+                      :key="rIdx"
+                      class="inline-flex items-center gap-1 text-[11px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded border border-red-200"
+                    >
+                      {{ reason }}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -308,17 +458,28 @@ const homeworkData = ref({
 })
 
 const isPastDeadline = computed(() => {
-  const d = homeworkData.value.deadlineRaw
+  const d = (homeworkData.value.status === 'returned' && homeworkData.value.makeupDeadlineRaw)
+    ? homeworkData.value.makeupDeadlineRaw
+    : homeworkData.value.deadlineRaw
   if (!d) return false
   return new Date() > new Date(d)
 })
 
-const answerInputsDisabled = computed(
-  () =>
-    homeworkData.value.isGraded ||
-    homeworkData.value.isSubmitted ||
-    (isPastDeadline.value && !homeworkData.value.isSubmitted),
-)
+const answerInputsDisabled = computed(() => {
+  if (homeworkData.value.status === 'returned') {
+    return isPastDeadline.value
+  }
+  if (homeworkData.value.isGraded) {
+    return true
+  }
+  if (homeworkData.value.status === 'resubmitted') {
+    return true
+  }
+  if (homeworkData.value.isSubmitted) {
+    return true
+  }
+  return isPastDeadline.value
+})
 
 const questionMaxScores = computed(() => perQuestionMaxScores(homeworkData.value.questions?.length || 0))
 
@@ -435,10 +596,17 @@ const loadData = async () => {
 
     homeworkData.value = {
       ...hw,
+      status: mySub?.status || (subIsSubmitted ? 'submitted' : 'unsubmitted'),
+      returnReason: mySub?.return_reason || '',
+      makeupDeadlineRaw: mySub?.makeup_deadline || null,
+      makeupDeadlineText: mySub?.makeup_deadline ? new Date(mySub.makeup_deadline).toLocaleString() : null,
+      returnedAtText: mySub?.returned_at ? new Date(mySub.returned_at).toLocaleString() : null,
+      previousScore: mySub?.previous_score ?? null,
+      previousFeedback: mySub?.previous_feedback || '',
       deadlineRaw: hw.deadline || null,
       deadlineText: hw.deadline ? new Date(hw.deadline).toLocaleString() : '-',
       isSubmitted: subIsSubmitted,
-      isGraded: Boolean(current?.score),
+      isGraded: (Boolean(current?.score) || mySub?.status === 'graded') && mySub?.status !== 'returned',
       score: current?.score || null,
       feedback: current?.feedback || '',
       submittedFileName: mySub?.file_name || null,
@@ -497,7 +665,7 @@ const handleFileChange = (index, event) => {
 
 const submitHomework = async () => {
   if (isPastDeadline.value) {
-    alert('已超過繳交截止時間，無法繳交作業')
+    alert(homeworkData.value.status === 'returned' ? '已超過補繳截止時間，無法補交作業' : '已超過繳交截止時間，無法繳交作業')
     return
   }
   const hasFile = files.value.some((f) => f != null)
@@ -508,6 +676,7 @@ const submitHomework = async () => {
     return
   }
   try {
+    const isMakeup = homeworkData.value.status === 'returned'
     const formData = new FormData()
 
     formData.append('answerText', JSON.stringify(answers.value))
@@ -522,7 +691,7 @@ const submitHomework = async () => {
     const { data: result } = await api.post(`/api/homeworks/${hwId}/submissions`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
-    alert(result.message)
+    alert(result.message || (isMakeup ? '補交作業成功！' : '作業繳交成功！'))
     await loadData()
   } catch (error) {
     alert(error.response?.data?.message || error.message)
@@ -548,6 +717,14 @@ const estimateMyScore = async () => {
 }
 
 const unsubmitHomework = async () => {
+  if (homeworkData.value.isGraded) {
+    alert('此作業已被老師完成批改，內容已全面鎖定，無法收回作業。')
+    return
+  }
+  if (homeworkData.value.status === 'returned') {
+    alert('作業目前為退件狀態，您可以直接修改內容並進行補交。')
+    return
+  }
   if (isPastDeadline.value) {
     alert('已超過繳交截止時間，無法收回作業')
     return
@@ -565,5 +742,65 @@ const unsubmitHomework = async () => {
   }
 }
 
-onMounted(loadData)
+const isLogsExpanded = ref(false)
+const studentTrackingEnabled = ref(false)
+const myLogs = ref([])
+
+const fetchMyActivityLogs = async () => {
+  const courseCode = route.params.id
+  if (!courseCode) return
+  try {
+    const res = await api.get(`/api/courses/${courseCode}/my-activity-logs`, {
+      params: { homeworkId: hwId },
+    })
+    if (res.data?.studentVisible) {
+      studentTrackingEnabled.value = true
+      myLogs.value = res.data.logs || []
+    } else {
+      studentTrackingEnabled.value = false
+      myLogs.value = []
+    }
+  } catch {
+    studentTrackingEnabled.value = false
+  }
+}
+
+const formatMyLogDate = (raw) => (raw ? new Date(raw).toLocaleTimeString('zh-TW', { hour12: false }) : '-')
+
+const getMyBadgeClass = (type) => {
+  switch (type) {
+    case 'INPUT_SNAPSHOT': return 'bg-amber-100 text-amber-800'
+    case 'COPY_BLOCKED': return 'bg-red-100 text-red-700 font-black'
+    case 'FILE_UPLOAD': return 'bg-purple-100 text-purple-700'
+    case 'BUTTON_CLICK': return 'bg-blue-100 text-blue-700'
+    default: return 'bg-gray-100 text-gray-700'
+  }
+}
+
+const getMyEventLabel = (type) => {
+  switch (type) {
+    case 'INPUT_SNAPSHOT': return '打字快照'
+    case 'COPY_BLOCKED': return '違規攔截'
+    case 'FILE_UPLOAD': return '檔案上傳'
+    case 'BUTTON_CLICK': return '點擊按鈕'
+    default: return type
+  }
+}
+
+const getMyActionDetail = (log) => {
+  let data = log.action_data
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data) } catch { return data }
+  }
+  if (!data) return log.target_element || '—'
+  if (data.previewSnippet) return `[${log.target_element || '作答'}] 目前字數: ${data.currentLength} 字 ("${data.previewSnippet}")`
+  if (data.action) return `[${log.target_element || '作答'}] 嘗試 ${data.action} 操作已被系統阻斷`
+  if (data.filesSummary) return `上傳檔案: ${data.filesSummary.map(f => f.name).join(', ')}`
+  return log.target_element || JSON.stringify(data)
+}
+
+onMounted(async () => {
+  await loadData()
+  fetchMyActivityLogs()
+})
 </script>

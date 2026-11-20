@@ -273,8 +273,63 @@ CREATE TABLE IF NOT EXISTS announcement_reads (
 )
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS user_activity_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    course_code VARCHAR(50) NULL,
+    homework_id VARCHAR(50) NULL,
+    user_id VARCHAR(100) NULL,
+    user_name VARCHAR(100) NULL,
+    role VARCHAR(20) NULL,
+    event_type VARCHAR(50) NOT NULL,
+    page_url VARCHAR(500) NOT NULL,
+    target_element VARCHAR(255) NULL,
+    action_data JSON NULL,
+    ip_address VARCHAR(64) NULL,
+    user_agent VARCHAR(500) NULL,
+    client_timestamp DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_time (user_id, created_at),
+    INDEX idx_event_type (event_type),
+    INDEX idx_created_at (created_at),
+    INDEX idx_course_hw (course_code, homework_id, created_at)
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS course_activity_configs (
+    course_code VARCHAR(50) PRIMARY KEY,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    track_clicks TINYINT(1) NOT NULL DEFAULT 0,
+    track_file_uploads TINYINT(1) NOT NULL DEFAULT 0,
+    track_inputs TINYINT(1) NOT NULL DEFAULT 1,
+    track_copy_violations TINYINT(1) NOT NULL DEFAULT 0,
+    input_interval_seconds INT NOT NULL DEFAULT 30,
+    student_visible TINYINT(1) NOT NULL DEFAULT 0,
+    anomaly_detection_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    max_chars_per_second INT NOT NULL DEFAULT 15,
+    check_frequency_anomaly TINYINT(1) NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT NOT NULL,
+    description VARCHAR(255) NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)
+""")
+
+cursor.execute("""
+INSERT IGNORE INTO system_settings (setting_key, setting_value, description)
+VALUES ('activity_tracker_config', '{"enabled":true,"trackClicks":true,"trackFileUploads":true,"trackPageViews":true,"trackInputs":true,"trackCopyViolations":true,"inputIntervalMinutes":2}', '全站網頁操作記錄動態配置')
+""")
+
 print("所有資料表建立完成！")
 
 cursor.close()
 conn.close()
+
 
