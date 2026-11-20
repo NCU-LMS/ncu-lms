@@ -87,7 +87,7 @@ export const HomeworkController = {
       res.json({ message: "作業繳交成功！" });
     } catch (error) {
       const msg = error.message || "";
-      if (msg.includes("截止") || msg.includes("空內容")) {
+      if (error.status === 400 || msg.includes("截止") || msg.includes("空內容")) {
         return res.status(400).json({ message: msg });
       }
       if (msg.includes("不允許") || msg.includes("檔案")) {
@@ -113,10 +113,10 @@ export const HomeworkController = {
       await HomeworkService.unsubmitHomework(hwId, req.user.username);
       res.json({ message: "作業已收回" });
     } catch (error) {
-      const msg = error.message || "";
-      if (msg.includes("截止")) {
-        return res.status(400).json({ message: msg });
+      if (error.status === 400) {
+        return res.status(400).json({ message: error.message });
       }
+      console.error("[unsubmitHomework]", error);
       res.status(500).json({ message: "收回失敗" });
     }
   },

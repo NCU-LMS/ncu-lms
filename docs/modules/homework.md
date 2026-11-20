@@ -78,10 +78,10 @@
 | `publishHomework` | transaction；發布成功後呼叫 [notification](notification.md) 的 `NotificationService.notifyByCourseCode` 通知修課學生 |
 | `getCourseHomeworks` | 依角色附加繳交/批改統計 |
 | `getHomeworkDetail` | |
-| `submitHomework` | 檢查截止時間；把每題的檔案整理成 `files_json`（陣列，每格對應一題）；移除指定題號的舊檔案；檢查「不能繳空內容」 |
+| `submitHomework` | 檢查截止時間；把每題的檔案整理成 `files_json`（陣列，每格對應一題）；移除指定題號的舊檔案；檢查「不能繳空內容」。**已批改就回 400、不覆蓋答案**：寫入時在 transaction 裡先用 `lockSubmissionForUpdate`（`SELECT ... FOR UPDATE`）鎖住這份繳交再檢查，老師的批改會等寫入完成，檢查後才被批改的也擋得住（NL-26） |
 | `updateHomework` | transaction；有傳 `questions` 時用 `syncQuestions` 依 id 就地更新（保留原本的子題 id，不是整批刪除重建）；截止時間若改到未來，重置 `grade_notified_at`（讓批改提醒排程重新計算） |
 | `deleteHomework` | |
-| `unsubmitHomework` | 保留內容，只標記 `is_submitted=0` |
+| `unsubmitHomework` | 保留內容，只標記 `is_submitted=0`。截止後、尚未繳交、**已批改**（`graded_at` 有值，只寫評語沒給分也算）都回 400；收回的 `UPDATE` 帶 `is_submitted = 1 AND graded_at IS NULL` 條件，學生頁面開很久、老師在這期間批改也收不回（NL-26） |
 | `exportSubmissions`/`exportSubmissionPdf` | 實際邏輯在 [`homeworkExportService.js`](#匯出)，這裡只是轉呼叫 |
 | `gradeSubmission` | |
 | `getSubmissionHistory` | |
@@ -101,8 +101,9 @@
 - `getQuestionsByHomework`：查某作業的子題
 - `getStudentSubmission`：查學生自己的繳交內容（⚠️ 不含 `ai_estimated_*` 欄位，見 [homework-ai 已知問題](homework-ai.md)）
 - `getHomeworkStats`：統計繳交/批改人數
-- `saveSubmissionPayload`：新增或覆寫繳交內容（含 `files_json` 多檔案陣列），取代舊的 `upsertSubmission`
-- `markSubmissionUnsubmitted`：標記收回繳交
+- `lockSubmissionForUpdate`：在 transaction 中鎖住學生的繳交列，回傳是否已批改
+- `saveSubmissionPayload`：新增或覆寫繳交內容（含 `files_json` 多檔案陣列），取代舊的 `upsertSubmission`（可傳入 transaction connection）
+- `markSubmissionUnsubmitted`：標記收回繳交（只在已繳交且未批改時生效，回傳是否真的收回）
 - `deleteSubmission`：刪除繳交紀錄
 - `getSubmissionsList`：查某作業的繳交清單
 - `getSubmissionDetail`：查單筆繳交詳情
