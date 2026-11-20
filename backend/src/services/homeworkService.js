@@ -3,6 +3,16 @@ import { HomeworkModel } from "../models/homeworkModel.js";
 import { appendSubmissionHistory } from "../utils/dbHistoryLogger.js";
 import { NotificationService, previewText, wantsNotification } from "./notificationService.js";
 
+const GRADED_UNSUBMIT_MESSAGE = "老師已批改此份作業，無法收回";
+const GRADED_RESUBMIT_MESSAGE = "老師已批改此份作業，無法再修改或重新繳交";
+
+/** 學生操作被規則擋下的錯誤，controller 依 status 回 400 */
+function badRequest(message) {
+  const error = new Error(message);
+  error.status = 400;
+  return error;
+}
+
 function deadlineIsInFuture(value) {
   if (value == null || value === "") return false;
   const date = value instanceof Date ? value : new Date(String(value).replace(" ", "T"));
@@ -163,6 +173,7 @@ export const HomeworkService = {
 
     const questions = await HomeworkModel.getQuestionsByHomework(hwId);
     const existing = await HomeworkModel.getStudentSubmission(hwId, studentId);
+    if (existing?.graded_at) throw badRequest(GRADED_RESUBMIT_MESSAGE);
     const storedFiles = storedFilesFromSubmission(existing, questions.length);
     const removeSet = new Set(
       (Array.isArray(removeFileIndexes) ? removeFileIndexes : [])
@@ -197,14 +208,29 @@ export const HomeworkService = {
     }
 
     const firstFile = storedFiles.find(Boolean) || null;
-    const subId = await HomeworkModel.saveSubmissionPayload(
-      hwId,
-      studentId,
-      answerText,
-      JSON.stringify(storedFiles),
-      firstFile?.file_name || null,
-      firstFile?.file_path || null,
-    );
+    // 鎖住這份繳交再檢查與寫入：老師的批改會等這裡寫完，檢查完才被批改的答案也不會被覆蓋
+    let subId;
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const { graded } = await HomeworkModel.lockSubmissionForUpdate(hwId, studentId, connection);
+      if (graded) throw badRequest(GRADED_RESUBMIT_MESSAGE);
+      subId = await HomeworkModel.saveSubmissionPayload(
+        hwId,
+        studentId,
+        answerText,
+        JSON.stringify(storedFiles),
+        firstFile?.file_name || null,
+        firstFile?.file_path || null,
+        connection,
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
 
     await appendSubmissionHistory(subId, "submit", {
       studentId,
@@ -303,18 +329,22 @@ export const HomeworkService = {
     await HomeworkModel.deleteHomeworkById(hwId);
   },
 
-  // 學生收回作業：保留原本作答與檔案，僅標記為未繳交
+  // 學生收回作業：保留原本作答與檔案，僅標記為未繳交；已批改就不能收回
   async unsubmitHomework(hwId, studentId) {
     const homework = await HomeworkModel.getHomeworkById(hwId);
+    if (!homework) throw badRequest("找不到作業");
     if (isClosedForSubmission(homework)) {
-      throw new Error("已超過繳交截止時間，無法收回作業");
+      throw badRequest("已超過繳交截止時間，無法收回作業");
     }
 
     const sub = await HomeworkModel.getStudentSubmission(hwId, studentId);
-    if (sub) {
-      await appendSubmissionHistory(sub.id, "unsubmit", { studentId });
-      await HomeworkModel.markSubmissionUnsubmitted(hwId, studentId);
-    }
+    if (!sub || !sub.is_submitted) throw badRequest("作業尚未繳交，無需收回");
+    if (sub.graded_at) throw badRequest(GRADED_UNSUBMIT_MESSAGE);
+
+    // 學生頁面可能停留很久，檢查完到真正收回之間老師仍可能剛好批改，由 UPDATE 條件把關
+    const unsubmitted = await HomeworkModel.markSubmissionUnsubmitted(hwId, studentId);
+    if (!unsubmitted) throw badRequest(GRADED_UNSUBMIT_MESSAGE);
+    await appendSubmissionHistory(sub.id, "unsubmit", { studentId });
   },
 
   // 老師批改作業

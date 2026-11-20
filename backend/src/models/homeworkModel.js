@@ -214,7 +214,16 @@ export const HomeworkModel = {
     return rows[0]?.id;
   },
 
-  async saveSubmissionPayload(hwId, studentId, answerText, filesJson, legacyFileName, legacyFilePath) {
+  /** 在 transaction 中鎖住學生這份繳交，回傳是否已批改（還沒有繳交紀錄時為 false） */
+  async lockSubmissionForUpdate(hwId, studentId, conn) {
+    const [rows] = await conn.execute(
+      "SELECT graded_at FROM homework_submissions WHERE homework_id = ? AND student_id = ? FOR UPDATE",
+      [hwId, studentId]
+    );
+    return { graded: rows[0]?.graded_at != null };
+  },
+
+  async saveSubmissionPayload(hwId, studentId, answerText, filesJson, legacyFileName, legacyFilePath, conn = pool) {
     const sql = `
       INSERT INTO homework_submissions
         (homework_id, student_id, answer_text, file_name, file_path, files_json, is_submitted)
@@ -227,7 +236,7 @@ export const HomeworkModel = {
         is_submitted = 1,
         submitted_at = CURRENT_TIMESTAMP
     `;
-    await pool.execute(sql, [
+    await conn.execute(sql, [
       hwId,
       studentId,
       answerText || null,
@@ -235,19 +244,24 @@ export const HomeworkModel = {
       legacyFilePath,
       filesJson,
     ]);
-    const [rows] = await pool.execute(
+    const [rows] = await conn.execute(
       "SELECT id FROM homework_submissions WHERE homework_id = ? AND student_id = ?",
       [hwId, studentId]
     );
     return rows[0]?.id;
   },
 
-  /** 學生收回作業：保留作答內容與檔案，僅標記為未繳交 */
+  /**
+   * 學生收回作業：保留作答內容與檔案，僅標記為未繳交。
+   * 條件寫在 WHERE 裡，老師在檢查之後才批改也不會被收回；回傳是否真的收回
+   */
   async markSubmissionUnsubmitted(hwId, studentId) {
-    await pool.execute(
-      "UPDATE homework_submissions SET is_submitted = 0 WHERE homework_id = ? AND student_id = ?",
+    const [result] = await pool.execute(
+      `UPDATE homework_submissions SET is_submitted = 0
+       WHERE homework_id = ? AND student_id = ? AND is_submitted = 1 AND graded_at IS NULL`,
       [hwId, studentId]
     );
+    return result.affectedRows > 0;
   },
 
   async deleteSubmission(hwId, studentId) {

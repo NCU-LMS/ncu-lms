@@ -456,7 +456,8 @@ const loadData = async () => {
       isSubmitted: subIsSubmitted,
       isLate: subIsSubmitted && Boolean(Number(mySub.is_late)),
       submittedAtText: subIsSubmitted && mySub.submitted_at ? new Date(mySub.submitted_at).toLocaleString() : '',
-      isGraded: Boolean(current?.score),
+      isGraded: Boolean(current?.score)|| Boolean(current?.score),
+
       score: current?.score || null,
       feedback: current?.feedback || '',
       submittedFileName: mySub?.file_name || null,
@@ -544,6 +545,8 @@ const submitHomework = async () => {
     await loadData()
   } catch (error) {
     alert(error.response?.data?.message || error.message)
+    // 頁面開著期間老師可能已經批改，重新載入讓畫面顯示成績、拿掉收回按鈕
+    await loadData()
   }
 }
 
@@ -580,6 +583,8 @@ const unsubmitHomework = async () => {
     await loadData()
   } catch (error) {
     alert(error.response?.data?.message || error.message)
+    // 頁面開著期間老師可能已經批改，重新載入讓畫面顯示成績、拿掉收回按鈕
+    await loadData()
   }
 }
 
