@@ -172,3 +172,13 @@
 | Medium | 沒有「管理員停用/刪除帳號」「管理員重設他人密碼」功能；帳號建錯只能直接改資料庫 |
 | Low | 批次匯入時所有帳號共用同一組初始密碼（雖然 `must_change_password = 1` 會強制首次登入改密碼），初始密碼要另外安全地通知對方 |
 | Low | 舊版 token 若還帶 `role: "ta"`，後端雖會當 `student` 處理，但要等 token 過期或重新登入才會乾淨 |
+
+## 忘記密碼安全限制（NL-8 / NL-18）
+
+- **驗證碼錯誤次數**：`resetPasswordWithCode` 先用 `reservePasswordResetAttempt` 原子地佔用一次機會（`accounts.reset_failed_attempts + 1`），再比對驗證碼，所以同時送出大量請求也最多只會比對 3 次。累計輸錯 3 次會寫入 `accounts.reset_locked_at`、刪除驗證碼，之後寄信與重設都會被拒絕，直到解鎖。重設成功或解鎖時清除次數。驗證碼已過期或尚未申請時不算錯誤次數。
+- **解鎖**：
+  - 學生：授課老師、該課助教或管理員在[學生名冊](student-list.md)點「已鎖定・解鎖」→ `POST /api/courses/:courseId/studentlist/unlock-password-reset`（`{ studentId }`；學生須在該課名冊中，不能解鎖自己）
+  - 任何帳號（含老師、管理員）：管理員呼叫 `POST /api/auth/accounts/unlock-password-reset`（`{ username }`，目前只有 API，沒有畫面）
+- **寄信頻率**：`requestPasswordReset` 在 transaction 中 `SELECT ... FOR UPDATE` 鎖住帳號列，依 `password_reset_email_log` 檢查：距上次寄送需滿 15 分鐘、同一天（伺服器日期）最多 3 封。寄信失敗時會刪掉這筆紀錄，不算次數。
+- **舊的 token 重設已停用**：`/reset-password` 前端路由改導向 `/forgot-password`，後端 `POST /api/auth/reset-password` 只接受 `email + code`。原本的 token 路徑會用 hash 在全表查驗證碼，等於可以不帶信箱猜任何人的 6 位數驗證碼、繞過錯誤次數限制。
+- 新增欄位/資料表由 `ensureSchema` 在啟動時補上：`accounts.reset_failed_attempts`、`accounts.reset_locked_at`、`password_reset_email_log`。

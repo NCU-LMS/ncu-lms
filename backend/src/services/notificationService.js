@@ -4,6 +4,14 @@ import { CourseModel } from "../models/courseModel.js";
 import { pool } from "../config/db.js";
 import { sendNotificationEmails } from "../utils/mailer.js";
 
+/** 未傳值時視為要通知；只有明確關閉才不送。 */
+export function wantsNotification(value) {
+  if (value === undefined || value === null || value === "") return true;
+  if (value === false || value === 0) return false;
+  const text = String(value).trim().toLowerCase();
+  return text !== "false" && text !== "0" && text !== "off" && text !== "no";
+}
+
 export function previewText(text, max = 120) {
   const normalized = String(text ?? "").replace(/\s+/g, " ").trim();
   if (!normalized) return "";

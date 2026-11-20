@@ -155,7 +155,8 @@ const initDB = async () => {
         title VARCHAR(255),
         description TEXT,
         deadline DATETIME,
-        grade_notified_at DATETIME NULL
+        grade_notified_at DATETIME NULL,
+        allow_late_submission TINYINT(1) NOT NULL DEFAULT 0
         )
     `);
 
@@ -383,6 +384,10 @@ const initDB = async () => {
 
     try {
         await pool.execute("ALTER TABLE homeworks ADD COLUMN attachments_json TEXT");
+    } catch (e) { /* 欄位已存在就忽略 */ }
+
+    try {
+        await pool.execute("ALTER TABLE announcements ADD COLUMN attachments_json TEXT NULL");
     } catch (e) { /* 欄位已存在就忽略 */ }
 
     try {

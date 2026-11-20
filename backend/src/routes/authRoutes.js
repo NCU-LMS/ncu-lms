@@ -14,6 +14,12 @@ router.post(
   uploadSpreadsheet.single("file"),
   AuthController.importAccounts,
 );
+router.post(
+  "/accounts/unlock-password-reset",
+  authMiddleware,
+  requireRole("admin"),
+  AuthController.unlockPasswordReset,
+);
 router.post("/login", AuthController.login);
 router.post("/forgot-password", AuthController.forgotPassword);
 router.post("/reset-password", AuthController.resetPassword);

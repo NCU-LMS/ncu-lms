@@ -3,6 +3,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ref, computed, onMounted, watch } from 'vue'
 import api from '@/api/client.js'
 import ChatBot from '@/components/ChatBot.vue'
+import { downloadFile, getFileUrl } from '@/utils/files.js'
+import AttachmentIcon from '@/components/AttachmentIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,8 +23,54 @@ const user = ref({
 const newAnnouncement = ref({
   title: '',
   content: '',
-  is_pinned: false
+  is_pinned: false,
+  notify: true,
 })
+const keptAttachments = ref([])
+const announcementFiles = ref([])
+const announcementFileInput = ref(null)
+
+const IMAGE_OR_PDF = /\.(pdf|png|jpe?g|gif|webp|bmp)$/i
+
+const resetAnnouncementForm = () => {
+  newAnnouncement.value = { title: '', content: '', is_pinned: false, notify: true }
+  keptAttachments.value = []
+  announcementFiles.value = []
+  if (announcementFileInput.value) announcementFileInput.value.value = ''
+}
+
+const openCreate = () => {
+  resetAnnouncementForm()
+  showAddAnnouncementModal.value = true
+}
+
+const isImageFile = (att) => IMAGE_OR_PDF.test(att?.file_name || att?.file_path || '') && !/\.pdf$/i.test(att?.file_name || att?.file_path || '')
+
+const onAnnouncementFiles = (event) => {
+  const list = event.target.files ? Array.from(event.target.files) : []
+  const invalid = list.filter((file) => !IMAGE_OR_PDF.test(file.name))
+  if (invalid.length) {
+    alert('公告附件只能上傳圖檔（png、jpg、gif、webp、bmp）或 PDF')
+    event.target.value = ''
+    announcementFiles.value = []
+    return
+  }
+  if (keptAttachments.value.length + list.length > 10) {
+    alert('公告附件最多 10 個')
+    event.target.value = ''
+    announcementFiles.value = []
+    return
+  }
+  announcementFiles.value = list
+}
+
+const downloadAttachment = async (att) => {
+  try {
+    await downloadFile(att?.file_path, att?.file_name || '附件')
+  } catch (err) {
+    alert(err.response?.data?.message || '下載附件失敗')
+  }
+}
 
 const loadUser = async() => {
   const stored = localStorage.getItem("user")
@@ -115,7 +163,11 @@ const startEdit = (item) => {
     title: item.title || '',
     content: item.content || '',
     is_pinned: Boolean(item.is_pinned),
+    notify: true,
   }
+  keptAttachments.value = Array.isArray(item.attachments) ? [...item.attachments] : []
+  announcementFiles.value = []
+  if (announcementFileInput.value) announcementFileInput.value.value = ''
   showAddAnnouncementModal.value = true
 }
 
@@ -137,24 +189,32 @@ const createAnnouncement = async () => {
   }
 
   try {
-    const payload = {
-      title: newAnnouncement.value.title,
-      content: newAnnouncement.value.content,
-      is_pinned: newAnnouncement.value.is_pinned,
-    }
+    const formData = new FormData()
+    formData.append('title', newAnnouncement.value.title)
+    formData.append('content', newAnnouncement.value.content)
+    formData.append('is_pinned', newAnnouncement.value.is_pinned ? 'true' : 'false')
+    formData.append('notify', newAnnouncement.value.notify ? 'true' : 'false')
     if (newAnnouncement.value.id) {
-      await api.put(`/api/courses/${courseCode.value}/announcements/${newAnnouncement.value.id}`, payload)
+      formData.append(
+        'keepAttachments',
+        JSON.stringify(keptAttachments.value.map((att) => att.file_path).filter(Boolean)),
+      )
+    }
+    announcementFiles.value.forEach((file) => formData.append('files', file))
+
+    if (newAnnouncement.value.id) {
+      await api.put(`/api/courses/${courseCode.value}/announcements/${newAnnouncement.value.id}`, formData)
     } else {
-      await api.post(`/api/courses/${courseCode.value}/announcements`, payload)
+      await api.post(`/api/courses/${courseCode.value}/announcements`, formData)
     }
 
     showAddAnnouncementModal.value = false
-    newAnnouncement.value = { title: '', content: '', is_pinned: false }
+    resetAnnouncementForm()
     fetchAnnouncements()
 
   } catch (err) {
     console.error('新增公告失敗', err)
-    alert('新增公告失敗')
+    alert(err.response?.data?.message || '新增公告失敗')
   }
 }
 
@@ -196,7 +256,7 @@ watch(
     </div>
     <button
       v-if="user.role === 'teacher'||user.role === 'ta'"
-      @click="showAddAnnouncementModal = true"
+      @click="openCreate"
       class="bg-[#337ab7] text-white px-4 py-1.5 rounded text-sm font-bold tracking-wide hover:bg-[#285e8e] shadow-sm transition-colors flex items-center gap-1 mb-4"
     >
       ＋ 新增公告
@@ -224,6 +284,9 @@ watch(
             </span>
 
             {{ item.title }}
+            <span v-if="item.attachments?.length" class="ml-2 inline-flex items-center gap-1 text-xs text-gray-500">
+              <AttachmentIcon /> {{ item.attachments.length }}
+            </span>
           </div>
 
           <div class="w-32 text-center text-gray-600 text-sm">
@@ -251,7 +314,7 @@ watch(
       @click="closeModal"
     >
       <div
-        class="bg-white p-6 rounded shadow-lg w-96"
+        class="bg-white p-6 rounded shadow-lg w-[32rem] max-w-[92vw] max-h-[85vh] overflow-y-auto"
         @click.stop
       >
         <h3 class="text-lg font-bold mb-3">
@@ -270,6 +333,21 @@ watch(
           {{ selectedAnnouncement?.content }}
         </div>
 
+        <div v-if="selectedAnnouncement?.attachments?.length" class="mt-4 border-t pt-3 space-y-3">
+          <p class="text-xs font-bold text-gray-500">附件</p>
+          <div v-for="(att, i) in selectedAnnouncement.attachments" :key="att.file_path || i">
+            <img
+              v-if="isImageFile(att)"
+              :src="getFileUrl(att.file_path)"
+              :alt="att.file_name || '附件'"
+              class="max-h-48 rounded border mb-1"
+            />
+            <button type="button" class="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline" @click="downloadAttachment(att)">
+              <AttachmentIcon /> {{ att.file_name || '附件' }}
+            </button>
+          </div>
+        </div>
+
         <div class="flex justify-end mt-4">
           <button
             class="px-3 py-1 bg-blue-500 text-white rounded"
@@ -282,8 +360,8 @@ watch(
     </div>
   </div>
 
-  <div v-if="showAddAnnouncementModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-    <div class="bg-white p-6 rounded shadow-lg w-96 text-sm">
+  <div v-if="showAddAnnouncementModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded shadow-lg w-[32rem] max-w-[92vw] max-h-[90vh] overflow-y-auto text-sm">
 
       <h3 class="font-bold mb-3">{{ newAnnouncement.id ? '修改公告' : '新增公告' }}</h3>
 
@@ -302,15 +380,43 @@ watch(
         rows="4"
       ></textarea>
 
-      <!-- 是否置頂 -->
-      <label class="flex items-center gap-2 mb-2">
+      <label class="flex items-center gap-2 mb-3">
         <input type="checkbox" v-model="newAnnouncement.is_pinned" />
         置頂公告
       </label>
 
+      <div class="mb-3">
+        <label class="block text-xs font-bold text-gray-600 mb-1">附件（僅限圖檔與 PDF，最多 10 個）</label>
+        <ul v-if="keptAttachments.length" class="mb-2 space-y-1">
+          <li v-for="(att, i) in keptAttachments" :key="att.file_path || i" class="flex items-center justify-between bg-gray-50 border rounded px-2 py-1">
+            <span class="truncate">{{ att.file_name || '附件' }}</span>
+            <button type="button" class="text-red-600 text-xs font-bold ml-2" @click="keptAttachments.splice(i, 1)">移除</button>
+          </li>
+        </ul>
+        <input
+          ref="announcementFileInput"
+          type="file"
+          multiple
+          accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,.pdf,application/pdf"
+          class="block w-full text-sm text-gray-500"
+          @change="onAnnouncementFiles"
+        />
+        <ul v-if="announcementFiles.length" class="mt-2 text-xs text-green-700 space-y-0.5 list-disc list-inside">
+          <li v-for="(file, i) in announcementFiles" :key="i">{{ file.name }}</li>
+        </ul>
+      </div>
+
+      <label class="flex items-start gap-2 mb-2 text-gray-700">
+        <input type="checkbox" v-model="newAnnouncement.notify" class="mt-0.5" />
+        <span>
+          發布通知給學生
+          <span class="block text-xs text-gray-500">預設會通知。取消勾選則只儲存，不發送通知。</span>
+        </span>
+      </label>
+
       <!-- 按鈕 -->
       <div class="flex justify-end gap-2 mt-4">
-        <button @click="showAddAnnouncementModal = false; newAnnouncement = { title: '', content: '', is_pinned: false }" class="px-3 py-1 border rounded">
+        <button @click="showAddAnnouncementModal = false; resetAnnouncementForm()" class="px-3 py-1 border rounded">
           取消
         </button>
 

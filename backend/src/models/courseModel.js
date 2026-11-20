@@ -55,7 +55,8 @@ export const CourseModel = {
   async getCourseStudents(courseId, conn = pool){
     const [rows] = await conn.execute(
       `SELECT s.id, s.name, s.student_id, a.email,
-              COALESCE(e.role, 'student') AS role, e.withdrawn_at
+              COALESCE(e.role, 'student') AS role, e.withdrawn_at,
+              (a.reset_locked_at IS NOT NULL) AS password_reset_locked
       FROM students s
       JOIN enrollments e ON s.id = e.student_id
       LEFT JOIN accounts a ON a.username = s.student_id

@@ -23,6 +23,7 @@
       </div>
       <div class="text-[15px] text-gray-600 flex gap-6">
         <span>截止日期：{{ homeworkDeadline }}</span>
+        <span v-if="allowLateSubmission" class="text-orange-600">開放補交</span>
         <span class="font-bold text-[#337ab7]">{{ progressText }}</span>
       </div>
     </div>
@@ -38,7 +39,7 @@
           :disabled="attachmentDownloading[i]"
           @click="onDownloadAttachment(att, i)"
         >
-          📎 {{ att.file_name || att.fileName || '附件' }}{{ attachmentDownloading[i] ? '（下載中...）' : '' }}
+          <AttachmentIcon /> {{ att.file_name || att.fileName || '附件' }}{{ attachmentDownloading[i] ? '（下載中...）' : '' }}
         </button>
       </div>
     </div>
@@ -104,7 +105,10 @@
               {{ sub.studentName || '未命名' }}
               <span class="block text-xs font-normal text-gray-500">{{ sub.studentId }}</span>
             </td>
-            <td class="p-3 text-gray-500 text-sm">{{ sub.uploadedAt }}</td>
+            <td class="p-3 text-gray-500 text-sm">
+              {{ sub.uploadedAt }}
+              <span v-if="sub.isLate" class="ml-1 inline-block text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">遲交</span>
+            </td>
             <td class="p-3">
               <span v-if="sub.score" class="font-bold text-green-600 text-lg">{{ sub.score }}</span>
               <span v-else class="text-red-500 font-bold text-sm">未批改</span>
@@ -211,6 +215,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/client.js'
 import { downloadFile, downloadApi } from '@/utils/files.js'
+import AttachmentIcon from '@/components/AttachmentIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -219,6 +224,7 @@ const hwId = route.params.hwId
 
 const homeworkTitle = ref('')
 const homeworkDeadline = ref('')
+const allowLateSubmission = ref(false)
 const homeworkAttachments = ref([])
 const questions = ref([])
 const submissions = ref([])
@@ -309,6 +315,7 @@ const loadData = async () => {
 
     homeworkTitle.value = hw.title
     homeworkDeadline.value = formatDate(hw.deadline)
+    allowLateSubmission.value = Boolean(hw.allow_late_submission)
     questions.value = hw.questions || []
     const raw = hw.attachments
     if (Array.isArray(raw) && raw.length) homeworkAttachments.value = raw
@@ -318,6 +325,7 @@ const loadData = async () => {
     submissions.value = subs.map((s) => ({
       ...s,
       uploadedAt: formatDate(s.submittedAt),
+      isLate: Boolean(Number(s.isLate)),
     }))
   } catch (error) {
     alert(error.response?.data?.message || error.message)

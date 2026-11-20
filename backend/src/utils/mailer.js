@@ -44,7 +44,7 @@ function formatNow() {
  * 組出正式通知信（HTML 與純文字兩種版本）。
  * 版面用 table 與 inline style，避免郵件軟體不支援外部樣式。
  */
-function renderLetter({ heading, greeting, intro, rows = [], body = "", actionUrl = "", actionLabel = "前往查看", notes = [] }) {
+function renderLetter({ heading, greeting, intro, rows = [], body = "", actionUrl = "", actionLabel = "前往查看", notes = [], showDefaultAction = true }) {
   const rowsHtml = rows
     .map(
       ([label, value]) => `
@@ -64,7 +64,9 @@ function renderLetter({ heading, greeting, intro, rows = [], body = "", actionUr
          <a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:10px 28px;background:#1f3a68;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:bold;">${escapeHtml(actionLabel)}</a>
        </p>
        <p style="margin:0 0 8px;font-size:12px;color:#718096;text-align:center;word-break:break-all;">若按鈕無法開啟，請複製以下網址至瀏覽器：<br>${escapeHtml(actionUrl)}</p>`
-    : `<p style="margin:20px 0 8px;color:#4a5568;">請登入${escapeHtml(SYSTEM_NAME)}查看詳細內容。</p>`;
+    : showDefaultAction
+      ? `<p style="margin:20px 0 8px;color:#4a5568;">請登入${escapeHtml(SYSTEM_NAME)}查看詳細內容。</p>`
+      : "";
 
   const notesHtml = notes.map((note) => `<p style="margin:12px 0 0;color:#4a5568;line-height:1.7;">${escapeHtml(note)}</p>`).join("");
 
@@ -107,7 +109,7 @@ function renderLetter({ heading, greeting, intro, rows = [], body = "", actionUr
     ...rows.map(([label, value]) => `${label}：${value}`),
     ...(body ? ["", "──────────", body, "──────────"] : []),
     "",
-    actionUrl ? `${actionLabel}：${actionUrl}` : `請登入${SYSTEM_NAME}查看詳細內容。`,
+    actionUrl ? `${actionLabel}：${actionUrl}` : showDefaultAction ? `請登入${SYSTEM_NAME}查看詳細內容。` : "",
     ...notes.flatMap((note) => ["", note]),
     "",
     `${SYSTEM_NAME} 敬上`,
@@ -122,21 +124,24 @@ function renderLetter({ heading, greeting, intro, rows = [], body = "", actionUr
  * 寄送密碼重設信。若未設定 SMTP_HOST 則略過並回傳 false。
  * @returns {Promise<boolean>}
  */
-export async function sendPasswordResetEmail({ to, resetUrl, username }) {
+export async function sendPasswordResetEmail({ to, code, username }) {
   const transporter = getTransporter();
   if (!transporter) return false;
 
   const { html, text } = renderLetter({
     heading: "帳號安全通知",
     greeting: `${username} 您好：`,
-    intro: "本系統於近期收到您帳號的密碼重設申請，請於連結有效期限內點選下方按鈕完成密碼重設。",
+    intro: "本系統於近期收到您帳號的密碼重設申請，請於 15 分鐘內回到網站，輸入下列驗證碼與新密碼完成重設。",
     rows: [
       ["帳號", username],
+      ["驗證碼", code],
       ["申請時間", formatNow()],
     ],
-    actionUrl: resetUrl,
-    actionLabel: "重設密碼",
-    notes: ["若您並未提出此申請，請忽略本信件，您的密碼將維持不變。為保障帳號安全，請勿將此連結轉寄他人。"],
+    showDefaultAction: false,
+    notes: [
+      "驗證碼將於 15 分鐘後失效，且僅能使用一次。",
+      "若您並未提出此申請，請忽略本信件，您的密碼將維持不變。為保障帳號安全，請勿將驗證碼轉寄他人。",
+    ],
   });
 
   await transporter.sendMail({
