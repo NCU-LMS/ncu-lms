@@ -30,6 +30,7 @@
             : showDeletedContent ? '隱藏原留言' : '查看原留言' }}
         </button>
         <button
+          v-if="canRestoreDeleted"
           type="button"
           class="text-xs font-bold text-green-700 hover:underline disabled:opacity-50"
           :disabled="restoring"
@@ -132,6 +133,13 @@ const restoring = ref(false)
 const showDeletedContent = ref(false)
 const route = useRoute()
 const canReviewDeleted = props.isStaff || props.post.studentId === props.username
+const canRestoreDeleted = computed(() => (
+  props.isStaff
+  || (
+    props.post.studentId === props.username
+    && props.post.deletedBy === props.post.studentId
+  )
+))
 const deletedContent = computed(() => props.deletedContents[props.post.id])
 
 const toggleDeletedContent = async () => {

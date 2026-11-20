@@ -187,7 +187,7 @@ export const GroupModel = {
 
   async getDeletedGroupDiscussionPost(groupId, postId) {
     const [rows] = await pool.execute(
-      `SELECT student_id AS studentId, content,
+      `SELECT student_id AS studentId, deleted_by AS deletedBy, content,
               attachment_file_name AS attachmentFileName
        FROM course_group_discussion_posts
        WHERE group_id = ? AND id = ? AND is_deleted = 1`,
@@ -238,7 +238,7 @@ export const GroupModel = {
       `UPDATE course_group_discussion_posts
        SET is_deleted = 0
        WHERE group_id = ? AND id = ? AND is_deleted = 1
-         AND (? = 1 OR student_id = ?)`,
+         AND (? = 1 OR (student_id = ? AND deleted_by = student_id))`,
       [groupId, postId, isStaff ? 1 : 0, studentId],
     );
     return result.affectedRows > 0;

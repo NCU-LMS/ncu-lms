@@ -237,8 +237,11 @@ export const GroupService = {
       error.code = "GROUP_POST_NOT_FOUND";
       throw error;
     }
-    if (!isStaff && post.studentId !== user.username) {
-      const error = new Error("只有留言作者或教師、助教能復原此留言");
+    if (
+      !isStaff
+      && (post.studentId !== user.username || post.deletedBy !== post.studentId)
+    ) {
+      const error = new Error("這則留言由教師或助教刪除，僅教師或助教能復原");
       error.code = "GROUP_POST_FORBIDDEN";
       throw error;
     }
