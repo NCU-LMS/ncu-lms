@@ -220,8 +220,8 @@ const courseId = route.params.id || route.params.courseId
 const quizId = route.params.quizId
 
 const userRole = computed(() => getRoleFromToken())
-const studentId = getUsernameFromToken() || localStorage.getItem('user') || ''
-const studentName = localStorage.getItem('userName') || studentId || '學生'
+const studentId = getUsernameFromToken() || localStorage.getItem('user') || sessionStorage.getItem('user') || ''
+const studentName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || studentId || '學生'
 const isTeacher = computed(() => ['teacher', 'ta'].includes(userRole.value))
 
 const quiz = ref(null)

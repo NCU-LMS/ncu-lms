@@ -432,6 +432,19 @@ const initDB = async () => {
         await pool.execute("ALTER TABLE enrollments ADD COLUMN role VARCHAR(50) DEFAULT 'student'");
     } catch (e) { /* 欄位已存在就忽略 */ }
     
+    //site_announcements 建立
+    await pool.execute(`
+        CREATE TABLE IF NOT EXISTS site_announcements (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT NOT NULL,
+            category ENUM('update', 'maintenance', 'notice') NOT NULL DEFAULT 'notice',
+            is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_site_announcements_order (is_pinned, created_at)
+        )
+    `);
+    
     console.log("資料庫檢查與初始化完成");
   } catch (error) {
     console.error("資料庫初始化過程中發生錯誤：", error);
