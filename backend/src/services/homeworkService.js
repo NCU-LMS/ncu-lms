@@ -341,10 +341,12 @@ export const HomeworkService = {
       try {
         await NotificationService.createNotification({
           userId: submission.studentId,
+          courseCode: submission.courseCode,
           title: `作業退件通知：${submission.homeworkTitle || "作業"}`,
           content: `您的作業已被授課老師退件。退件原因：${returnReason || "無"}。${makeupDeadline ? `補繳截止時間：${new Date(makeupDeadline).toLocaleString()}` : ""}`,
           type: "homework_return",
           refId: String(submission.homework_id),
+          linkPath: submission.courseCode ? `/course/${submission.courseCode}/homework/${submission.homework_id}` : "",
         });
       } catch (notifErr) {
         console.warn("發送退件通知失敗:", notifErr);
@@ -354,6 +356,14 @@ export const HomeworkService = {
 
   // 老師批改作業
   async gradeSubmission(submissionId, score, feedback, gradedDetails) {
+    const submission = await HomeworkModel.getSubmissionDetail(submissionId);
+    if (!submission) {
+      throw new Error("找不到繳交紀錄");
+    }
+    if (submission.status === "returned") {
+      throw new Error("此作業目前處於退件待補交狀態，待學生重新繳交後方可進行評分");
+    }
+
     await HomeworkModel.updateGrade(submissionId, score, feedback, gradedDetails);
     await appendSubmissionHistory(submissionId, "teacher_grade", {
       score: score ?? null,

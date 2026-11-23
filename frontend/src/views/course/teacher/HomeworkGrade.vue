@@ -378,9 +378,13 @@
               ></textarea>
             </div>
 
+            <div v-if="studentData.status === 'returned'" class="p-2.5 bg-amber-50 border border-amber-300 rounded text-amber-800 text-xs">
+              此作業處於退件待補交狀態，需待學生重新繳交後方可評分。
+            </div>
             <button
               type="submit"
-              class="w-full bg-green-600 text-white font-bold py-2.5 rounded hover:bg-green-700 transition-colors mt-2"
+              :disabled="studentData.status === 'returned'"
+              class="w-full bg-green-600 text-white font-bold py-2.5 rounded hover:bg-green-700 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               儲存成績並返回
             </button>
@@ -898,6 +902,10 @@ const loadData = async () => {
 }
 
 const submitGrade = async () => {
+  if (studentData.value.status === 'returned') {
+    alert('此作業目前處於退件待補交狀態，待學生重新繳交後方可進行評分')
+    return
+  }
   try {
     const payload = {
       score: String(gradingForm.value.score),

@@ -113,12 +113,58 @@ export const NotificationService = {
     return emailPayload;
   },
 
+  async createNotification({ userId, studentId, courseCode, courseId, title, content, message, type, refId, linkPath = "" }) {
+    const username = userId || studentId;
+    if (!username) return;
+
+    const studentDbId = await resolveStudentDbId(username);
+    if (!studentDbId) {
+      console.warn("[NotificationService] 找不到學生 ID:", username);
+      return;
+    }
+
+    let resolvedCourseId = courseId;
+    if (!resolvedCourseId && courseCode) {
+      const course = await CourseModel.findCourseByCode(courseCode);
+      resolvedCourseId = course?.id || null;
+    }
+    if (!resolvedCourseId) {
+      console.warn("[NotificationService] 找不到對應課程:", courseCode);
+      return;
+    }
+
+    const notifMessage = content || message || "";
+    await NotificationModel.createForStudent(studentDbId, resolvedCourseId, type, refId, title, notifMessage);
+
+    const email = await NotificationModel.getStudentEmail(studentDbId);
+    if (email) {
+      this.sendEmailPayload({
+        courseId: resolvedCourseId,
+        title,
+        message: notifMessage,
+        linkPath,
+        recipients: [email],
+      });
+    }
+  },
+
   sendEmailPayload(payload) {
     if (!payload) return;
     setImmediate(() => {
-      this.emailEnrolledStudents(payload).catch((err) => {
-        console.error("[notify-email]", err?.message || err);
-      });
+      if (Array.isArray(payload.recipients) && payload.recipients.length > 0) {
+        sendNotificationEmails({
+          recipients: payload.recipients,
+          subject: payload.title,
+          message: payload.message || payload.title,
+          linkPath: payload.linkPath || "",
+        }).catch((err) => {
+          console.error("[notify-email]", err?.message || err);
+        });
+      } else {
+        this.emailEnrolledStudents(payload).catch((err) => {
+          console.error("[notify-email]", err?.message || err);
+        });
+      }
     });
   },
 

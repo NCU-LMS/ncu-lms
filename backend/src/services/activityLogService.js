@@ -72,12 +72,6 @@ export function evaluateLogAnomaly(log, config) {
           reasons.push(`打字節奏標準差極低 (${actionData.keystrokeStdDev}ms，疑似機器人規律輸入)`);
         }
       }
-
-      if (Array.isArray(actionData.anomalyReasons) && actionData.anomalyReasons.length > 0) {
-        for (const r of actionData.anomalyReasons) {
-          if (!reasons.includes(r)) reasons.push(r);
-        }
-      }
     }
   }
 
@@ -90,14 +84,19 @@ export function evaluateLogAnomaly(log, config) {
 export const ActivityLogService = {
   
   async recordBatchLogs(rawLogs, currentUser, clientIp) {
+    if (!currentUser || !currentUser.username) {
+      return { success: false, message: "未登入", count: 0 };
+    }
     if (!Array.isArray(rawLogs) || rawLogs.length === 0) {
       return { success: true, count: 0 };
     }
 
+    const batch = rawLogs.slice(0, 50);
+
     const sanitizedLogs = [];
     const courseConfigsCache = new Map();
 
-    for (const item of rawLogs) {
+    for (const item of batch) {
       if (!item || typeof item !== "object") continue;
 
       const pageUrl = String(item.pageUrl || "");
@@ -105,14 +104,14 @@ export const ActivityLogService = {
       const courseCode = item.courseCode || parsedCourse || null;
       const homeworkId = item.homeworkId || parsedHw || null;
 
+      if (!courseCode) continue;
+
       let config = DEFAULT_COURSE_CONFIG;
-      if (courseCode) {
-        if (!courseConfigsCache.has(courseCode)) {
-          const cfg = await ActivityLogModel.getCourseConfig(courseCode);
-          courseConfigsCache.set(courseCode, cfg);
-        }
-        config = courseConfigsCache.get(courseCode);
+      if (!courseConfigsCache.has(courseCode)) {
+        const cfg = await ActivityLogModel.getCourseConfig(courseCode);
+        courseConfigsCache.set(courseCode, cfg);
       }
+      config = courseConfigsCache.get(courseCode);
 
       if (config.enabled === false) continue;
 
@@ -125,15 +124,15 @@ export const ActivityLogService = {
       sanitizedLogs.push({
         courseCode,
         homeworkId,
-        userId: currentUser?.username || item.userId || null,
-        userName: currentUser?.name || item.userName || null,
-        role: currentUser?.role || item.role || (currentUser ? "student" : "guest"),
+        userId: currentUser.username,
+        userName: currentUser.name || null,
+        role: currentUser.role || "student",
         eventType: type || "CUSTOM",
         pageUrl,
         targetElement: item.targetElement ? String(item.targetElement).slice(0, 255) : null,
         actionData: item.actionData || null,
         ipAddress: clientIp,
-        userAgent: item.userAgent ? String(item.userAgent) : null,
+        userAgent: item.userAgent ? String(item.userAgent).slice(0, 500) : null,
         clientTimestamp: item.clientTimestamp || new Date().toISOString(),
       });
     }

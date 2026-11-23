@@ -1,10 +1,10 @@
 import { pool } from "../config/db.js";
 
 export const DEFAULT_COURSE_CONFIG = {
-  enabled: true,
+  enabled: false,
   trackClicks: false,
   trackFileUploads: false,
-  trackInputs: true,
+  trackInputs: false,
   trackCopyViolations: false,
   inputIntervalSeconds: 30,
   studentVisible: false,
@@ -134,8 +134,8 @@ export const ActivityLogModel = {
 
   
   async queryCourseLogs({ courseCode, homeworkId, userId, eventType, allowedEventTypes, search, startDate, endDate, onlyAnomalies, page = 1, limit = 20 }) {
-    const whereClauses = ["(course_code = ? OR page_url LIKE ?)"];
-    const params = [courseCode, `%/course/${courseCode}/%`];
+    const whereClauses = ["course_code = ?"];
+    const params = [courseCode];
 
     if (Array.isArray(allowedEventTypes)) {
       if (allowedEventTypes.length === 0) {
@@ -206,10 +206,10 @@ export const ActivityLogModel = {
   
   async queryStudentCourseLogs({ courseCode, homeworkId, userId, allowedEventTypes, page = 1, limit = 30 }) {
     const whereClauses = [
-      "(course_code = ? OR page_url LIKE ?)",
+      "course_code = ?",
       "user_id = ?",
     ];
-    const params = [courseCode, `%/course/${courseCode}/%`, userId];
+    const params = [courseCode, userId];
 
     if (Array.isArray(allowedEventTypes)) {
       if (allowedEventTypes.length === 0) {

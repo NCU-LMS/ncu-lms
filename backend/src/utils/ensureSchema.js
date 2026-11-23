@@ -140,10 +140,10 @@ const MIGRATIONS = [
   "ALTER TABLE user_activity_logs ADD INDEX idx_course_hw (course_code, homework_id, created_at)",
   `CREATE TABLE IF NOT EXISTS course_activity_configs (
     course_code VARCHAR(50) PRIMARY KEY,
-    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    enabled TINYINT(1) NOT NULL DEFAULT 0,
     track_clicks TINYINT(1) NOT NULL DEFAULT 0,
     track_file_uploads TINYINT(1) NOT NULL DEFAULT 0,
-    track_inputs TINYINT(1) NOT NULL DEFAULT 1,
+    track_inputs TINYINT(1) NOT NULL DEFAULT 0,
     track_copy_violations TINYINT(1) NOT NULL DEFAULT 0,
     input_interval_seconds INT NOT NULL DEFAULT 30,
     student_visible TINYINT(1) NOT NULL DEFAULT 0,
@@ -156,14 +156,6 @@ const MIGRATIONS = [
   "ALTER TABLE course_activity_configs ADD COLUMN anomaly_detection_enabled TINYINT(1) NOT NULL DEFAULT 1",
   "ALTER TABLE course_activity_configs ADD COLUMN max_chars_per_second INT NOT NULL DEFAULT 15",
   "ALTER TABLE course_activity_configs ADD COLUMN check_frequency_anomaly TINYINT(1) NOT NULL DEFAULT 1",
-  `CREATE TABLE IF NOT EXISTS system_settings (
-    setting_key VARCHAR(100) PRIMARY KEY,
-    setting_value TEXT NOT NULL,
-    description VARCHAR(255) NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-  )`,
-  `INSERT IGNORE INTO system_settings (setting_key, setting_value, description)
-   VALUES ('activity_tracker_config', '{"enabled":true,"trackClicks":true,"trackFileUploads":true,"trackPageViews":true,"trackInputs":true,"trackCopyViolations":true,"inputIntervalMinutes":2}', '全站網頁操作記錄動態配置')`,
 ];
 
 const IGNORABLE_CODES = new Set([

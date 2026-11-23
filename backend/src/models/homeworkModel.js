@@ -237,13 +237,13 @@ export const HomeworkModel = {
       ON DUPLICATE KEY UPDATE
         previous_answer_text = IF(status = 'returned', answer_text, previous_answer_text),
         previous_files_json = IF(status = 'returned', files_json, previous_files_json),
+        resubmitted_at = IF(status = 'returned', CURRENT_TIMESTAMP, resubmitted_at),
         answer_text = VALUES(answer_text),
         file_name = VALUES(file_name),
         file_path = VALUES(file_path),
         files_json = VALUES(files_json),
         is_submitted = 1,
         status = VALUES(status),
-        resubmitted_at = IF(status = 'returned', CURRENT_TIMESTAMP, resubmitted_at),
         submitted_at = CURRENT_TIMESTAMP
     `;
     await pool.execute(sql, [

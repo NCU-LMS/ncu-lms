@@ -1,6 +1,25 @@
 import { pool } from "../config/db.js";
 
 export const NotificationModel = {
+  async createForStudent(studentDbId, courseId, type, refId, title, message, conn = pool) {
+    return conn.execute(
+      `INSERT INTO notifications (student_id, course_id, type, ref_id, title, message)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [studentDbId, courseId, type, refId == null ? null : String(refId), title, message || ""]
+    );
+  },
+
+  async getStudentEmail(studentDbId, conn = pool) {
+    const [rows] = await conn.execute(
+      `SELECT a.email
+       FROM students s
+       JOIN accounts a ON a.username = s.student_id
+       WHERE s.id = ? AND a.email IS NOT NULL AND TRIM(a.email) <> ''`,
+      [studentDbId]
+    );
+    return rows[0]?.email || null;
+  },
+
   // 對課程所有修課學生建立通知（可排除發文者本人，例如助教）
   async createForCourseStudents(courseId, type, refId, title, message, excludeStudentDbId = null, conn = pool) {
     return conn.execute(

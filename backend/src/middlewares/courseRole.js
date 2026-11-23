@@ -80,3 +80,82 @@ export const courseRole = {
     return row && { courseId: row.course_id };
   }),
 };
+
+export async function isCourseStaffUser(user, courseCode) {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  if (!courseCode) return false;
+
+  const [teacherRows] = await pool.execute(
+    `SELECT 1 FROM teacher_courses tc
+     JOIN teachers t ON t.id = tc.teacher_id
+     JOIN courses c ON c.id = tc.course_id
+     WHERE t.teacher_id = ? AND c.course_code = ?
+     LIMIT 1`,
+    [user.username, courseCode],
+  );
+  if (teacherRows.length > 0) return true;
+
+  const [taRows] = await pool.execute(
+    `SELECT 1 FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     JOIN courses c ON c.id = e.course_id
+     WHERE s.student_id = ? AND e.role = 'ta' AND c.course_code = ?
+     LIMIT 1`,
+    [user.username, courseCode],
+  );
+  if (taRows.length > 0) return true;
+
+  return false;
+}
+
+export async function isCourseMemberUser(user, courseCode) {
+  if (!user) return false;
+  if (await isCourseStaffUser(user, courseCode)) return true;
+
+  const [studentRows] = await pool.execute(
+    `SELECT 1 FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     JOIN courses c ON c.id = e.course_id
+     WHERE s.student_id = ? AND e.role != 'dropped' AND c.course_code = ?
+     LIMIT 1`,
+    [user.username, courseCode],
+  );
+  return studentRows.length > 0;
+}
+
+export function requireCourseStaff() {
+  return async (req, res, next) => {
+    try {
+      const courseCode = req.params.courseCode;
+      if (!courseCode) {
+        return res.status(400).json({ message: "缺少課程代碼" });
+      }
+      const isStaff = await isCourseStaffUser(req.user, courseCode);
+      if (!isStaff) {
+        return res.status(403).json({ message: "權限不足：您不是此課程的授課教師或助教" });
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+export function requireCourseMember() {
+  return async (req, res, next) => {
+    try {
+      const courseCode = req.params.courseCode;
+      if (!courseCode) {
+        return res.status(400).json({ message: "缺少課程代碼" });
+      }
+      const isMember = await isCourseMemberUser(req.user, courseCode);
+      if (!isMember) {
+        return res.status(403).json({ message: "權限不足：您未參與此課程" });
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}

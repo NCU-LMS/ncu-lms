@@ -1,11 +1,11 @@
 import api from "@/api/client.js";
 
 let trackerConfig = {
-  enabled: true,
+  enabled: false,
   trackClicks: false,
   trackFileUploads: false,
   trackPageViews: false,
-  trackInputs: true,
+  trackInputs: false,
   trackCopyViolations: false,
   inputIntervalSeconds: 30,
   anomalyDetectionEnabled: true,
@@ -181,7 +181,6 @@ function scanInputSnapshots(isPeriodic = false) {
           uniformFrequency,
           isAnomaly,
           anomalyReasons,
-          previewSnippet: currentVal.slice(0, 100) + (currentVal.length > 100 ? "..." : ""),
         },
       });
 
@@ -295,7 +294,7 @@ export function initActivityTracker({ router = null } = {}) {
     "focusin",
     (e) => {
       const target = e.target;
-      if (target && (target.tagName === "TEXTAREA" || (target.tagName === "INPUT" && target.type === "text"))) {
+      if (target && target.hasAttribute && target.hasAttribute("data-track")) {
         if (!activeInputs.has(target)) {
           activeInputs.set(target, {
             lastValue: target.value || "",
@@ -312,7 +311,7 @@ export function initActivityTracker({ router = null } = {}) {
     "input",
     (e) => {
       const target = e.target;
-      if (target && (target.tagName === "TEXTAREA" || (target.tagName === "INPUT" && target.type === "text"))) {
+      if (target && target.hasAttribute && target.hasAttribute("data-track")) {
         const now = Date.now();
         let info = activeInputs.get(target);
         if (!info) {
@@ -349,6 +348,9 @@ export function initActivityTracker({ router = null } = {}) {
       const { courseCode } = getCurrentCourseAndHw();
       if (courseCode && courseCode !== currentTrackedCourse) {
         refreshTrackerConfig(courseCode);
+      } else if (!courseCode) {
+        trackerConfig = { ...trackerConfig, enabled: false };
+        currentTrackedCourse = null;
       }
 
       trackEvent({

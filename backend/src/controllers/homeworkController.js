@@ -182,8 +182,8 @@ export const HomeworkController = {
       const { score, feedback, gradedDetails } = req.body;
       await HomeworkService.gradeSubmission(submissionId, score, feedback, gradedDetails);
       res.json({ message: "批改完成！" });
-    } catch {
-      res.status(500).json({ message: "評分失敗" });
+    } catch (error) {
+      res.status(400).json({ message: error.message || "評分失敗" });
     }
   },
 
@@ -195,7 +195,8 @@ export const HomeworkController = {
       res.json({ message: "作業已成功退件！" });
     } catch (error) {
       console.error("退件失敗:", error);
-      res.status(500).json({ message: error.message || "退件失敗" });
+      const status = error.message === "找不到繳交紀錄" ? 404 : 500;
+      res.status(status).json({ message: error.message || "退件失敗" });
     }
   },
 
