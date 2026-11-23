@@ -148,7 +148,7 @@ const handleFileChange = (event) => {
 
 // 取得使用者資訊
 const loadUser = async () => {
-  const stored = localStorage.getItem("user")
+  const stored = localStorage.getItem("user") || sessionStorage.getItem("user")
   if (!stored) {
     router.push('/')
     return
