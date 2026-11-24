@@ -100,6 +100,12 @@
                   type="text"
                   class="w-full bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-800"
                 />
+                <p
+                  class="mt-1 text-right text-xs"
+                  :class="titleLength(q.title) > QUESTION_TITLE_MAX ? 'text-red-500 font-bold' : 'text-gray-400'"
+                >
+                  {{ titleLength(q.title) }}/{{ QUESTION_TITLE_MAX }}
+                </p>
               </div>
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">題目說明</label>
@@ -163,6 +169,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '@/api/client.js'
+import { QUESTION_TITLE_MAX, titleLength, firstOverlongQuestion } from '@/utils/questionTitle.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -261,6 +268,11 @@ const saveHomework = async () => {
   }
   if (form.value.questions.some((q) => !q.title)) {
     alert('每道題目都必須填寫「題目標題」！')
+    return
+  }
+  const overlong = firstOverlongQuestion(form.value.questions)
+  if (overlong) {
+    alert(`第 ${overlong} 題的標題超過 ${QUESTION_TITLE_MAX} 字，請縮短或把詳細內容移到「題目說明」！`)
     return
   }
 

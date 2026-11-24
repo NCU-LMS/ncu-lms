@@ -14,13 +14,13 @@
 
     <div class="flex gap-6 items-start">
 
-      <div class="flex-1 flex flex-col gap-5">
+      <div class="flex-1 min-w-0 flex flex-col gap-5">
         <div class="bg-white border rounded shadow-sm overflow-hidden">
           <div class="bg-gray-100 px-5 py-3 border-b font-bold text-gray-700">學生作答內容</div>
 
           <div class="p-5 space-y-6">
             <div v-for="(ans, index) in studentAnswers" :key="ans.id" class="border rounded-lg p-5 bg-gray-50">
-              <h4 class="font-bold text-[#337ab7] mb-2 text-[16px]">第 {{ index + 1 }} 題：{{ ans.questionTitle }}</h4>
+              <h4 class="font-bold text-[#337ab7] mb-2 text-[16px] break-words">第 {{ index + 1 }} 題：{{ ans.questionTitle }}</h4>
               <p class="text-[14px] text-gray-600 mb-4 whitespace-pre-line border-b pb-3 border-gray-200">{{ ans.questionDescription }}</p>
 
               <div class="mt-3">

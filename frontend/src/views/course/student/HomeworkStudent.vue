@@ -105,7 +105,7 @@
 
       <div class="p-5 space-y-8">
         <div v-for="(q, index) in homeworkData.questions" :key="q.id" class="border-b pb-6 last:border-0">
-          <h3 class="font-bold text-[#337ab7] mb-2">第 {{ index + 1 }} 題：{{ q.title }}</h3>
+          <h3 class="font-bold text-[#337ab7] mb-2 break-words">第 {{ index + 1 }} 題：{{ q.title }}</h3>
           <p class="text-xs text-gray-500 mb-1">此題滿分：{{ questionMaxScores[index] ?? '—' }}（全班同一配分規則：100 ÷ 子題數，餘數配在前幾題）</p>
           <p class="text-gray-700 whitespace-pre-line mb-4">{{ q.description || '（無題目說明）' }}</p>
 

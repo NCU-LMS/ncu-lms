@@ -47,7 +47,7 @@
       <div class="bg-gray-100 px-5 py-3 border-b font-bold text-gray-700">作業題目與要求</div>
       <div class="p-5 space-y-4">
         <div v-for="(q, index) in questions" :key="q.id || index" class="border rounded-lg p-4 bg-gray-50">
-          <h4 class="font-bold text-[#337ab7] mb-2 text-[16px]">{{ q.title }}</h4>
+          <h4 class="font-bold text-[#337ab7] mb-2 text-[16px] break-words">{{ q.title }}</h4>
           <p class="text-[15px] text-gray-700 mb-3 whitespace-pre-line">{{ q.description || '（無題目說明）' }}</p>
 
           <div v-if="q.has_attachment && q.file_path" class="flex items-start gap-2 border-t pt-3 mt-1 border-gray-200">
