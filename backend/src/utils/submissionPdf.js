@@ -86,7 +86,11 @@ async function appendAttachment(target, file) {
 }
 
 function drawStudentAnswers(doc, questions, student) {
-  doc.fontSize(13).fillColor("#1f2937").text(`學生：${student.name || "未命名"}（${student.studentId}）`);
+  doc.fontSize(13).fillColor("#1f2937").text(
+    student.groupId
+      ? `小組：${student.name || "未命名"}（${student.studentId}）`
+      : `學生：${student.name || "未命名"}（${student.studentId}）`,
+  );
   if (student.submittedAt) {
     doc.fontSize(10).fillColor("#4b5563").text(`繳交時間：${new Date(student.submittedAt).toLocaleString("zh-TW")}`);
   }

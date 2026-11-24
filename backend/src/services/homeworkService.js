@@ -57,6 +57,7 @@ export const HomeworkService = {
   // 老師發布作業
   async publishHomework(courseId, bodyData, files, actorUsername = null) {
     const { title, deadline, description, questions, isGroupHomework, allowLateSubmission } = bodyData;
+    const groupHomework = toBool(isGroupHomework);
     let connection;
     try {
       connection = await pool.getConnection();
@@ -97,7 +98,9 @@ export const HomeworkService = {
             headline: `新作業：${title}`,
             message: previewText(description),
             excludeUsername: actorUsername,
-            linkPath: `/course/${courseCode}/homework/${hwId}`,
+            linkPath: groupHomework
+              ? `/course/${courseCode}/group`
+              : `/course/${courseCode}/homework/${hwId}`,
           });
         } catch (notifyError) {
           console.error("[notify] 作業通知失敗", notifyError?.message || notifyError);
@@ -115,7 +118,10 @@ export const HomeworkService = {
 
   // 獲取作業列表 (依據身分附加繳交狀態或批改統計)
   async getCourseHomeworks(courseId, role, userId) {
-    const homeworks = await HomeworkModel.getHomeworksByCourse(courseId);
+    const homeworks = await HomeworkModel.getHomeworksByCourse(
+      courseId,
+      role === "teacher" || role === "ta",
+    );
 
     if (role === 'student' && userId) {
       for (let hw of homeworks) {
@@ -165,14 +171,20 @@ export const HomeworkService = {
   },
 
   // 學生繳交作業
-  async submitHomework(hwId, studentId, answerText, files = [], removeFileIndexes = []) {
+  async submitHomework(hwId, studentId, answerText, files = [], removeFileIndexes = [], groupId = null) {
     const homework = await HomeworkModel.getHomeworkById(hwId);
+    if (groupId === null && homework?.is_group_homework) {
+      throw new Error("小組作業請從小組專區繳交");
+    }
+    if (groupId !== null && !homework?.is_group_homework) {
+      throw new Error("這不是小組作業");
+    }
     if (isClosedForSubmission(homework)) {
       throw new Error("已超過繳交截止時間，無法繳交作業");
     }
 
     const questions = await HomeworkModel.getQuestionsByHomework(hwId);
-    const existing = await HomeworkModel.getStudentSubmission(hwId, studentId);
+    const existing = await HomeworkModel.getStudentSubmission(hwId, studentId, groupId);
     if (existing?.graded_at) throw badRequest(GRADED_RESUBMIT_MESSAGE);
     const storedFiles = storedFilesFromSubmission(existing, questions.length);
     const removeSet = new Set(
@@ -213,7 +225,12 @@ export const HomeworkService = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      const { graded } = await HomeworkModel.lockSubmissionForUpdate(hwId, studentId, connection);
+      const { graded } = await HomeworkModel.lockSubmissionForUpdate(
+        hwId,
+        studentId,
+        connection,
+        groupId,
+      );
       if (graded) throw badRequest(GRADED_RESUBMIT_MESSAGE);
       subId = await HomeworkModel.saveSubmissionPayload(
         hwId,
@@ -222,6 +239,7 @@ export const HomeworkService = {
         JSON.stringify(storedFiles),
         firstFile?.file_name || null,
         firstFile?.file_path || null,
+        groupId,
         connection,
       );
       await connection.commit();
@@ -330,19 +348,29 @@ export const HomeworkService = {
   },
 
   // 學生收回作業：保留原本作答與檔案，僅標記為未繳交；已批改就不能收回
-  async unsubmitHomework(hwId, studentId) {
+  async unsubmitHomework(hwId, studentId, groupId = null) {
     const homework = await HomeworkModel.getHomeworkById(hwId);
     if (!homework) throw badRequest("找不到作業");
+    if (groupId === null && homework?.is_group_homework) {
+      throw new Error("小組作業請從小組專區處理");
+    }
+    if (groupId !== null && !homework?.is_group_homework) {
+      throw new Error("這不是小組作業");
+    }
     if (isClosedForSubmission(homework)) {
       throw badRequest("已超過繳交截止時間，無法收回作業");
     }
 
-    const sub = await HomeworkModel.getStudentSubmission(hwId, studentId);
+    const sub = await HomeworkModel.getStudentSubmission(hwId, studentId, groupId);
     if (!sub || !sub.is_submitted) throw badRequest("作業尚未繳交，無需收回");
     if (sub.graded_at) throw badRequest(GRADED_UNSUBMIT_MESSAGE);
 
     // 學生頁面可能停留很久，檢查完到真正收回之間老師仍可能剛好批改，由 UPDATE 條件把關
-    const unsubmitted = await HomeworkModel.markSubmissionUnsubmitted(hwId, studentId);
+    const unsubmitted = await HomeworkModel.markSubmissionUnsubmitted(
+      hwId,
+      studentId,
+      groupId,
+    );
     if (!unsubmitted) throw badRequest(GRADED_UNSUBMIT_MESSAGE);
     await appendSubmissionHistory(sub.id, "unsubmit", { studentId });
   },
