@@ -29,6 +29,21 @@ export const StudentListController = {
     }
   },
 
+  async unlockPasswordReset(req, res) {
+    try {
+      const result = await StudentListService.unlockPasswordReset(
+        req.body?.studentId,
+        req.params.courseId,
+        req.user.username,
+      );
+      res.json(result);
+    } catch (err) {
+      const msg = err.message || "解鎖失敗";
+      if (isNotFound(msg)) return res.status(404).json({ message: msg });
+      res.status(400).json({ message: msg });
+    }
+  },
+
   async syncStudents(req, res) {
     try {
       if (!req.file) {

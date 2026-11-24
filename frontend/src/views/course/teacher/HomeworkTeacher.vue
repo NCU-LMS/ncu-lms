@@ -24,6 +24,7 @@
       <div class="text-[15px] text-gray-600 flex gap-6">
         <span v-if="isGroupHomework">每組共用一份繳交與成績</span>
         <span>截止日期：{{ homeworkDeadline }}</span>
+        <span v-if="allowLateSubmission" class="text-orange-600">開放補交</span>
         <span class="font-bold text-[#337ab7]">{{ progressText }}</span>
       </div>
     </div>
@@ -39,7 +40,7 @@
           :disabled="attachmentDownloading[i]"
           @click="onDownloadAttachment(att, i)"
         >
-          📎 {{ att.file_name || att.fileName || '附件' }}{{ attachmentDownloading[i] ? '（下載中...）' : '' }}
+          <AttachmentIcon /> {{ att.file_name || att.fileName || '附件' }}{{ attachmentDownloading[i] ? '（下載中...）' : '' }}
         </button>
       </div>
     </div>
@@ -48,7 +49,7 @@
       <div class="bg-gray-100 px-5 py-3 border-b font-bold text-gray-700">作業題目與要求</div>
       <div class="p-5 space-y-4">
         <div v-for="(q, index) in questions" :key="q.id || index" class="border rounded-lg p-4 bg-gray-50">
-          <h4 class="font-bold text-[#337ab7] mb-2 text-[16px]">{{ q.title }}</h4>
+          <h4 class="font-bold text-[#337ab7] mb-2 text-[16px] break-words">{{ q.title }}</h4>
           <p class="text-[15px] text-gray-700 mb-3 whitespace-pre-line">{{ q.description || '（無題目說明）' }}</p>
 
           <div v-if="q.has_attachment && q.file_path" class="flex items-start gap-2 border-t pt-3 mt-1 border-gray-200">
@@ -105,7 +106,10 @@
               {{ sub.studentName || '未命名' }}
               <span v-if="!isGroupHomework" class="block text-xs font-normal text-gray-500">{{ sub.studentId }}</span>
             </td>
-            <td class="p-3 text-gray-500 text-sm">{{ sub.uploadedAt }}</td>
+            <td class="p-3 text-gray-500 text-sm">
+              {{ sub.uploadedAt }}
+              <span v-if="sub.isLate" class="ml-1 inline-block text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">遲交</span>
+            </td>
             <td class="p-3">
               <span v-if="sub.score !== null && sub.score !== undefined && sub.score !== ''" class="font-bold text-green-600 text-lg">{{ sub.score }}</span>
               <span v-else class="text-red-500 font-bold text-sm">未批改</span>
@@ -216,6 +220,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/client.js'
 import { downloadFile, downloadApi } from '@/utils/files.js'
+import AttachmentIcon from '@/components/AttachmentIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -225,6 +230,7 @@ const hwId = route.params.hwId
 const homeworkTitle = ref('')
 const homeworkDeadline = ref('')
 const isGroupHomework = ref(false)
+const allowLateSubmission = ref(false)
 const homeworkAttachments = ref([])
 const questions = ref([])
 const submissions = ref([])
@@ -316,6 +322,7 @@ const loadData = async () => {
     homeworkTitle.value = hw.title
     homeworkDeadline.value = formatDate(hw.deadline)
     isGroupHomework.value = Boolean(hw.is_group_homework)
+    allowLateSubmission.value = Boolean(hw.allow_late_submission)
     questions.value = hw.questions || []
     const raw = hw.attachments
     if (Array.isArray(raw) && raw.length) homeworkAttachments.value = raw
@@ -325,6 +332,7 @@ const loadData = async () => {
     submissions.value = subs.map((s) => ({
       ...s,
       uploadedAt: formatDate(s.submittedAt),
+      isLate: Boolean(Number(s.isLate)),
     }))
   } catch (error) {
     alert(error.response?.data?.message || error.message)

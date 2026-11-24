@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Course from '../views/Course.vue'
 import ForgotPassword from "../views/ForgotPassword.vue"
-import ResetPassword from "../views/ResetPassword.vue"
 import ChangePassword from "../views/ChangePassword.vue"
 import Profile from "../views/Profile.vue"
 import MainPage from '../views/MainPage.vue'
@@ -139,7 +138,8 @@ const router = createRouter({
     // 登入表單在首頁，舊的 /login 網址導回首頁
     { path: "/login", redirect: "/" },
     { path: "/forgot-password", name: 'ForgotPassword', component: ForgotPassword },
-    { path: "/reset-password", name: 'ResetPassword', component: ResetPassword }
+    // 舊的 token 重設網址已停用（無法限制錯誤次數），導向以驗證碼重設的忘記密碼頁
+    { path: "/reset-password", redirect: "/forgot-password" }
   ]
 })
 

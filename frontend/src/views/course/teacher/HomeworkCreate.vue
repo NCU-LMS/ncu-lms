@@ -47,6 +47,14 @@
           </span>
         </label>
 
+        <label class="flex items-start gap-2 text-sm text-gray-700">
+          <input v-model="form.allowLateSubmission" type="checkbox" class="mt-0.5" />
+          <span>
+            允許補交
+            <span class="block text-xs text-gray-500">截止後學生仍可繳交，繳交紀錄會標示「遲交」與實際繳交時間。</span>
+          </span>
+        </label>
+
         <div>
           <label class="block text-[15px] font-bold text-gray-700 mb-1.5">
             統一附件 <span class="text-gray-500 font-normal text-sm">（選填，供全班學生下載，可複選）</span>
@@ -99,6 +107,12 @@
                 placeholder="清輸入標題..."
                 class="w-full bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-400 focus:bg-[#eef3fe] transition-colors"
               />
+              <p
+                class="mt-1 text-right text-xs"
+                :class="titleLength(q.title) > QUESTION_TITLE_MAX ? 'text-red-500 font-bold' : 'text-gray-400'"
+              >
+                {{ titleLength(q.title) }}/{{ QUESTION_TITLE_MAX }}
+              </p>
             </div>
 
             <div>
@@ -204,7 +218,15 @@
       </div>
     </div>
 
-    <div class="flex justify-end gap-3 mt-2">
+    <div class="flex items-center justify-between gap-3 mt-2 flex-wrap">
+      <label class="flex items-start gap-2 text-sm text-gray-700">
+        <input v-model="notifyStudents" type="checkbox" class="mt-0.5" />
+        <span>
+          發布通知給學生
+          <span class="block text-xs text-gray-500">預設會通知。取消勾選則只發布，不發送通知。</span>
+        </span>
+      </label>
+      <div class="flex gap-3">
       <button
         type="button"
         @click="goBack"
@@ -219,6 +241,7 @@
       >
         確認發布作業
       </button>
+      </div>
     </div>
 
   </div>
@@ -228,6 +251,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '@/api/client.js'
+import { QUESTION_TITLE_MAX, titleLength, firstOverlongQuestion } from '@/utils/questionTitle.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -235,12 +259,14 @@ const courseId = route.params.id
 
 /** 作業層級附件（後端欄位 homework_files） */
 const homeworkFiles = ref([])
+const notifyStudents = ref(true)
 
 const form = ref({
   title: '',
   deadline: '',
   description: '',
   isGroupHomework: false,
+  allowLateSubmission: false,
   questions: [
     {
       title: '',
@@ -308,6 +334,12 @@ const submitAssignment = async () => {
     return
   }
 
+  const overlong = firstOverlongQuestion(form.value.questions)
+  if (overlong) {
+    alert(`第 ${overlong} 題的標題超過 ${QUESTION_TITLE_MAX} 字，請縮短或把詳細內容移到「題目說明」！`)
+    return
+  }
+
   const formData = new FormData()
 
   formData.append('title', form.value.title)
@@ -318,6 +350,8 @@ const submitAssignment = async () => {
 
   formData.append('description', form.value.description || '')
   formData.append('isGroupHomework', String(form.value.isGroupHomework))
+  formData.append('allowLateSubmission', String(form.value.allowLateSubmission))
+  formData.append('notify', notifyStudents.value ? 'true' : 'false')
 
   const questionsData = form.value.questions.map(q => ({
     title: q.title,

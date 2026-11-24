@@ -95,6 +95,29 @@ export const uploadSpreadsheet = multer({
   },
 });
 
+const ANNOUNCEMENT_EXTENSIONS = new Set([".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
+
+function announcementFileFilter(_req, file, cb) {
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const mime = String(file.mimetype || "").toLowerCase();
+  if (!ANNOUNCEMENT_EXTENSIONS.has(ext)) {
+    return cb(new Error("只允許上傳圖檔與 PDF"));
+  }
+  const isPdf = ext === ".pdf";
+  const mimeOk = isPdf
+    ? mime === "application/pdf" || mime === "application/x-pdf" || mime === "application/octet-stream" || mime === ""
+    : mime.startsWith("image/") || mime === "application/octet-stream" || mime === "";
+  if (!mimeOk) return cb(new Error("只允許上傳圖檔與 PDF"));
+  cb(null, true);
+}
+
+/** 公告附件：僅圖檔與 PDF */
+export const uploadAnnouncement = multer({
+  storage,
+  limits: { fileSize: MAX_GENERAL_FILE_BYTES, files: 10 },
+  fileFilter: announcementFileFilter,
+});
+
 // 討論區：維持僅 PDF、較小上限
 export const uploadPdf = multer({
   storage,

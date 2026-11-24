@@ -155,7 +155,8 @@ const initDB = async () => {
         title VARCHAR(255),
         description TEXT,
         deadline DATETIME,
-        grade_notified_at DATETIME NULL
+        grade_notified_at DATETIME NULL,
+        allow_late_submission TINYINT(1) NOT NULL DEFAULT 0
         )
     `);
 
@@ -386,6 +387,10 @@ const initDB = async () => {
     } catch (e) { /* 欄位已存在就忽略 */ }
 
     try {
+        await pool.execute("ALTER TABLE announcements ADD COLUMN attachments_json TEXT NULL");
+    } catch (e) { /* 欄位已存在就忽略 */ }
+
+    try {
         await pool.execute(`
         ALTER TABLE course_ai_prompts
         ADD COLUMN send_announcements BOOLEAN NOT NULL DEFAULT FALSE
@@ -431,7 +436,14 @@ const initDB = async () => {
     try{
         await pool.execute("ALTER TABLE enrollments ADD COLUMN role VARCHAR(50) DEFAULT 'student'");
     } catch (e) { /* 欄位已存在就忽略 */ }
-    
+
+    // 子題標題上限 255 → 512 字（老師常把整段題目貼進標題）；MODIFY 可重複執行
+    try {
+        await pool.execute("ALTER TABLE homework_questions MODIFY COLUMN title VARCHAR(512)");
+    } catch (e) {
+        console.error("homework_questions.title 放寬失敗：", e.message);
+    }
+
     console.log("資料庫檢查與初始化完成");
   } catch (error) {
     console.error("資料庫初始化過程中發生錯誤：", error);

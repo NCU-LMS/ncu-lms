@@ -8,7 +8,10 @@
           <span v-if="!studentData.groupId">（{{ studentData.id }}）</span>
           <span v-else class="text-sm text-gray-600">（小組共用作業）</span>
         </h2>
-        <p class="text-sm text-gray-600">繳交時間：{{ studentData.uploadedAt }}</p>
+        <p class="text-sm text-gray-600">
+          繳交時間：{{ studentData.uploadedAt }}
+          <span v-if="studentData.isLate" class="ml-1 text-red-600 font-bold">（遲交）</span>
+        </p>
       </div>
       <div v-if="gradingForm.score" class="text-right">
         <span class="block text-sm text-gray-500 mb-1">目前成績</span>
@@ -18,7 +21,7 @@
 
     <div class="flex gap-6 items-start">
 
-      <div class="flex-1 flex flex-col gap-5">
+      <div class="flex-1 min-w-0 flex flex-col gap-5">
         <div class="bg-white border rounded shadow-sm overflow-hidden">
           <div class="bg-gray-100 px-5 py-3 border-b font-bold text-gray-700">
             {{ studentData.groupId ? '小組作答內容' : '學生作答內容' }}
@@ -26,7 +29,7 @@
 
           <div class="p-5 space-y-6">
             <div v-for="(ans, index) in studentAnswers" :key="ans.id" class="border rounded-lg p-5 bg-gray-50">
-              <h4 class="font-bold text-[#337ab7] mb-2 text-[16px]">第 {{ index + 1 }} 題：{{ ans.questionTitle }}</h4>
+              <h4 class="font-bold text-[#337ab7] mb-2 text-[16px] break-words">第 {{ index + 1 }} 題：{{ ans.questionTitle }}</h4>
               <p class="text-[14px] text-gray-600 mb-4 whitespace-pre-line border-b pb-3 border-gray-200">{{ ans.questionDescription }}</p>
 
               <div class="mt-3">
@@ -206,7 +209,8 @@ const onDownloadAnswer = async (ans) => {
 
 const studentData = ref({
   id: '',
-  uploadedAt: ''
+  uploadedAt: '',
+  isLate: false,
 })
 
 const aiLoadingId = ref(null)
@@ -317,7 +321,8 @@ const loadData = async () => {
       id: subData.studentId,
       name: subData.studentName || '',
       groupId: subData.groupId || null,
-      uploadedAt: subData.submittedAt ? new Date(subData.submittedAt).toLocaleString() : '-'
+      uploadedAt: subData.submittedAt ? new Date(subData.submittedAt).toLocaleString() : '-',
+      isLate: Boolean(Number(subData.isLate)),
     }
 
     gradingForm.value.score = subData.score || ''

@@ -36,6 +36,14 @@ export const AuthModel = {
     return rows[0];
   },
 
+  async findAccountByEmail(email) {
+    const [rows] = await pool.execute(
+      "SELECT * FROM accounts WHERE email IS NOT NULL AND LOWER(email) = LOWER(?) LIMIT 1",
+      [email],
+    );
+    return rows[0];
+  },
+
   async getRoleByUsername(username) {
     const [rows] = await pool.execute("SELECT role FROM accounts WHERE username = ?", [username]);
     return rows[0]?.role;
@@ -77,21 +85,98 @@ export const AuthModel = {
     await pool.execute("DELETE FROM password_reset_tokens WHERE account_id = ?", [accountId]);
   },
 
-  async insertPasswordResetToken(accountId, tokenHash, expiresAt) {
+  async insertPasswordResetToken(accountId, tokenHash) {
     await pool.execute(
-      "INSERT INTO password_reset_tokens (account_id, token_hash, expires_at) VALUES (?, ?, ?)",
-      [accountId, tokenHash, expiresAt],
+      "INSERT INTO password_reset_tokens (account_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))",
+      [accountId, tokenHash],
     );
   },
 
-  async findActivePasswordResetByTokenHash(tokenHash) {
+  async findActivePasswordResetForAccount(accountId) {
     const [rows] = await pool.execute(
-      `SELECT id, account_id FROM password_reset_tokens
-       WHERE token_hash = ? AND expires_at > NOW() AND used_at IS NULL
+      `SELECT id, token_hash FROM password_reset_tokens
+       WHERE account_id = ? AND expires_at > NOW() AND used_at IS NULL
+       ORDER BY id DESC
        LIMIT 1`,
-      [tokenHash],
+      [accountId],
     );
     return rows[0] || null;
+  },
+
+  /** 鎖住帳號那一列，讓同一帳號的寄信檢查與寫入紀錄不會被同時請求繞過 */
+  async lockAccountRowForUpdate(accountId, conn) {
+    const [rows] = await conn.execute(
+      "SELECT id, reset_locked_at FROM accounts WHERE id = ? FOR UPDATE",
+      [accountId],
+    );
+    return rows[0] || null;
+  },
+
+  /** 寄信頻率統計：最近一次寄送距今幾秒、今天（伺服器日期）已寄幾次 */
+  async getPasswordResetEmailStats(accountId, conn = pool) {
+    const [rows] = await conn.execute(
+      `SELECT
+         TIMESTAMPDIFF(SECOND, MAX(sent_at), NOW()) AS seconds_since_last,
+         SUM(sent_at >= CURDATE()) AS sent_today
+       FROM password_reset_email_log
+       WHERE account_id = ? AND sent_at >= CURDATE() - INTERVAL 1 DAY`,
+      [accountId],
+    );
+    const row = rows[0] || {};
+    return {
+      secondsSinceLast: row.seconds_since_last == null ? null : Number(row.seconds_since_last),
+      sentToday: Number(row.sent_today ?? 0),
+    };
+  },
+
+  async insertPasswordResetEmailLog(accountId, conn = pool) {
+    const [result] = await conn.execute(
+      "INSERT INTO password_reset_email_log (account_id) VALUES (?)",
+      [accountId],
+    );
+    return result.insertId;
+  },
+
+  async deletePasswordResetEmailLog(id) {
+    await pool.execute("DELETE FROM password_reset_email_log WHERE id = ?", [id]);
+  },
+
+  /**
+   * 先佔用一次驗證機會：未鎖定且次數未滿才 +1，回傳是否成功。
+   * 先加後驗，同時送出大量請求也最多只會有 maxAttempts 次真正比對驗證碼。
+   */
+  async reservePasswordResetAttempt(accountId, maxAttempts) {
+    const [result] = await pool.execute(
+      `UPDATE accounts SET reset_failed_attempts = reset_failed_attempts + 1
+       WHERE id = ? AND reset_locked_at IS NULL AND reset_failed_attempts < ?`,
+      [accountId, maxAttempts],
+    );
+    return result.affectedRows > 0;
+  },
+
+  /** 驗證碼錯誤：次數已達上限就鎖定，回傳鎖定後的狀態 */
+  async lockPasswordResetIfExceeded(accountId, maxAttempts) {
+    await pool.execute(
+      `UPDATE accounts SET reset_locked_at = NOW()
+       WHERE id = ? AND reset_locked_at IS NULL AND reset_failed_attempts >= ?`,
+      [accountId, maxAttempts],
+    );
+    const [rows] = await pool.execute(
+      "SELECT reset_failed_attempts, reset_locked_at FROM accounts WHERE id = ?",
+      [accountId],
+    );
+    return {
+      failedAttempts: Number(rows[0]?.reset_failed_attempts ?? 0),
+      locked: rows[0]?.reset_locked_at != null,
+    };
+  },
+
+  /** 重設成功或被解鎖時清除錯誤次數與鎖定 */
+  async clearPasswordResetLock(accountId) {
+    await pool.execute(
+      "UPDATE accounts SET reset_failed_attempts = 0, reset_locked_at = NULL WHERE id = ?",
+      [accountId],
+    );
   },
 
   async markPasswordResetTokenUsed(id) {

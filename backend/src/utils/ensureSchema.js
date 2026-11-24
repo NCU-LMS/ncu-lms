@@ -103,6 +103,18 @@ const MIGRATIONS = [
   // 要當哪一門課的助教，由授課老師或管理員在該課的學生名冊勾選
   "UPDATE accounts SET role = 'student' WHERE role = 'ta'",
   "ALTER TABLE accounts ADD COLUMN email VARCHAR(100) NULL",
+  // 忘記密碼：驗證碼累計輸錯次數；達上限時寫入 reset_locked_at，需由老師／助教／管理員解鎖
+  "ALTER TABLE accounts ADD COLUMN reset_failed_attempts INT NOT NULL DEFAULT 0",
+  "ALTER TABLE accounts ADD COLUMN reset_locked_at DATETIME NULL",
+  // 忘記密碼驗證信寄送紀錄，用來限制寄送頻率（間隔與每日上限）
+  `CREATE TABLE IF NOT EXISTS password_reset_email_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_reset_email_log_account (account_id, sent_at),
+    CONSTRAINT fk_reset_email_log_account
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+  )`,
   // notifications：站內通知（公告、作業、測驗、討論）
   `CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -125,12 +137,16 @@ const MIGRATIONS = [
   "ALTER TABLE notifications ADD INDEX idx_notif_teacher (teacher_id, is_read, created_at)",
   // 作業截止後只通知老師一次；NULL 代表尚未通知
   "ALTER TABLE homeworks ADD COLUMN grade_notified_at DATETIME NULL",
+  // 老師勾選「允許補交」後，截止後仍可繳交，繳交時間晚於截止即標示遲交
+  "ALTER TABLE homeworks ADD COLUMN allow_late_submission TINYINT(1) NOT NULL DEFAULT 0",
   // 學生每題各自的檔案，避免新上傳蓋掉其他題
   "ALTER TABLE homework_submissions ADD COLUMN files_json LONGTEXT NULL",
   // 討論主題記錄建立者，舊資料維持 NULL
   "ALTER TABLE discussion_rooms ADD COLUMN created_by VARCHAR(64) NULL",
   // 公告實際發布者；舊公告維持 NULL，畫面仍顯示授課老師
   "ALTER TABLE announcements ADD COLUMN author_username VARCHAR(64) NULL",
+  // 公告附件（圖檔、PDF），JSON 陣列 [{ file_name, file_path }]
+  "ALTER TABLE announcements ADD COLUMN attachments_json TEXT NULL",
 ];
 
 const IGNORABLE_CODES = new Set([

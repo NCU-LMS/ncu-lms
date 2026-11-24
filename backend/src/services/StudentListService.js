@@ -1,6 +1,7 @@
 import { pool } from "../config/db.js";
 import { CourseModel } from "../models/courseModel.js";
 import { AuthModel } from "../models/authModel.js";
+import { AuthService } from "./authService.js";
 import { parseRosterExcel } from "../utils/rosterExcel.js";
 
 const ENROLLMENT_ROLES = new Set(["student", "external", "auditor", "ta", "dropped"]);
@@ -51,6 +52,23 @@ export const StudentListService = {
       throw new Error("該學生不在這門課的名冊中");
     }
     return CourseModel.enrollStudent(student.id, course.id, undefined, role);
+  },
+
+  /** 老師／助教／管理員解除名冊上學生的忘記密碼鎖定（驗證碼輸錯次數過多） */
+  async unlockPasswordReset(studentIdentifier, courseCode, actorUsername) {
+    const username = String(studentIdentifier ?? "").trim();
+    if (!username) throw new Error("請指定學生");
+    if (username === actorUsername) throw new Error("不能解鎖自己的帳號，請聯絡授課老師或管理員");
+
+    const course = await requireCourse(courseCode);
+    const student = await AuthModel.getStudentById(username);
+    const currentRole = student && (await CourseModel.getEnrollmentRole(student.id, course.id));
+    if (!currentRole) throw new Error("該學生不在這門課的名冊中");
+
+    const account = await AuthModel.findAccountByUsername(username);
+    if (!account) throw new Error("找不到此學生的帳號");
+    await AuthService.unlockPasswordReset(account.id);
+    return { message: `已解除 ${student.name}（${username}）的忘記密碼鎖定` };
   },
 
   /**

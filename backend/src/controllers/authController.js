@@ -43,12 +43,8 @@ export const AuthController = {
 
   async forgotPassword(req, res) {
     try {
-      const { username, recoveryCode, password, confirmPassword } = req.body;
-      const result = await AuthService.resetPasswordWithRecoveryCode({
-        username,
-        recoveryCode,
-        password,
-        confirmPassword,
+      const result = await AuthService.requestPasswordReset({
+        email: req.body?.email ?? req.body?.username,
       });
       res.json(result);
     } catch (error) {
@@ -89,11 +85,21 @@ export const AuthController = {
 
   async resetPassword(req, res) {
     try {
-      const { token, password, confirmPassword } = req.body;
-      const result = await AuthService.resetPasswordWithToken({ token, password, confirmPassword });
+      const { email, code, password, confirmPassword } = req.body;
+      // 只接受「信箱 + 驗證碼」：舊的 token 網址可直接猜 6 位數驗證碼、繞過錯誤次數限制，已停用
+      const result = await AuthService.resetPasswordWithCode({ email, code, password, confirmPassword });
       res.json(result);
     } catch (error) {
       res.status(400).json({ message: error.message });
+    }
+  },
+
+  async unlockPasswordReset(req, res) {
+    try {
+      const result = await AuthService.unlockPasswordResetByUsername(req.body?.username);
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({ message: error.message || "解鎖失敗" });
     }
   },
 };
