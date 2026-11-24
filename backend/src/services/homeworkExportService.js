@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { ZipArchive } from "archiver";
 import { HomeworkModel } from "../models/homeworkModel.js";
 import { HomeworkService } from "./homeworkService.js";
-import { buildStudentPdf, concatPdfs } from "../utils/submissionPdf.js";
+import { buildStudentPdf, buildClassMergedPdf } from "../utils/submissionPdf.js";
 
 const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../uploads");
 
@@ -79,7 +79,7 @@ export const HomeworkExportService = {
       student.pdf = await buildStudentPdf(homework, questions, student);
       students.push(student);
     }
-    const allPdf = students.length ? await concatPdfs(students.map((student) => student.pdf)) : null;
+    const allPdf = students.length ? await buildClassMergedPdf(homework, questions, students) : null;
     return { homework, students, allPdf };
   },
 

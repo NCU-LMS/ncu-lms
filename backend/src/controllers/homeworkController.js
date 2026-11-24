@@ -51,7 +51,7 @@ export const HomeworkController = {
   async updateHomework(req, res) {
     try {
       const { hwId } = req.params;
-      await HomeworkService.updateHomework(hwId, req.body, req.files);
+      await HomeworkService.updateHomework(hwId, req.body, req.files, req.user?.username);
       res.json({ message: "作業更新成功！" });
     } catch (error) {
       const msg = error.message || "";

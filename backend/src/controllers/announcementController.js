@@ -37,17 +37,18 @@ export const AnnouncementController = {
   async create(req, res) {
     try {
       const { courseCode } = req.params;
-      const { title, content, is_pinned } = req.body;
+      const { title, content, is_pinned, notify, keepAttachments } = req.body;
 
       if (!courseCode || !title) return res.status(400).json({ message: "缺少必要參數" });
 
-      await AnnouncementService.createAnnouncement(
-        courseCode,
-        req.user.username,
+      await AnnouncementService.createAnnouncement(courseCode, req.user.username, {
         title,
         content,
-        is_pinned,
-      );
+        isPinned: is_pinned,
+        notify,
+        keepAttachments,
+        files: req.files,
+      });
       res.json({ message: "公告新增成功" });
     } catch (error) {
       res.status(400).json({ message: error.message || "公告新增失敗" });
@@ -56,13 +57,19 @@ export const AnnouncementController = {
 
   async update(req, res) {
     try {
-      const { title, content, is_pinned } = req.body;
+      const { title, content, is_pinned, notify, keepAttachments } = req.body;
       await AnnouncementService.updateAnnouncement(
         req.params.courseCode,
         req.params.announcementId,
-        title,
-        content,
-        is_pinned,
+        req.user.username,
+        {
+          title,
+          content,
+          isPinned: is_pinned,
+          notify,
+          keepAttachments,
+          files: req.files,
+        },
       );
       res.json({ message: "公告已更新" });
     } catch (error) {
